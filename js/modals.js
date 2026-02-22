@@ -731,7 +731,7 @@ function RenderModals() {
                             </div>
                             <div class="text-sm">
                                 <p class="font-bold mb-1">文件任务功能需激活</p>
-                                <p class="text-xs text-blue-700 opacity-90 leading-relaxed">请输入由管理员提供的 12 位激活码以解锁所有文件支持任务，该功能包含云存储和团队权限控制，需要独立激活使用。</p>
+                                <p class="text-xs text-blue-700 opacity-90 leading-relaxed">文件上传下载功能有可能产生费用，需要独立激活使用。如有需要联系管理员（wechat:kururugi111）获取 12 位激活码。</p>
                             </div>
                         </div>
                         
