@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CollabSync - 协作同步</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons (Global Version) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB4CnNo-aQY5pOXLUKndQzsYkHu7FkBp40",
+            authDomain: "collabsync-7a2cd.firebaseapp.com",
+            projectId: "collabsync-7a2cd",
+            storageBucket: "collabsync-7a2cd.firebasestorage.app",
+            messagingSenderId: "997421706890",
+            appId: "1:997421706890:web:6e06e4eff833f29ff00773"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        const functions = getFunctions(app);
+        const googleProvider = new GoogleAuthProvider();
+
+        // Expose to window for Action consumption
+        window.fb = {
+            auth,
+            db,
+            storage,
+            functions,
+            googleProvider,
+            signInWithPopup,
+            signOut,
+            doc,
+            setDoc,
+            getDoc,
+            getDocs,
+            collection,
+            query,
+            where,
+            onSnapshot,
+            addDoc,
+            updateDoc,
+            deleteDoc,
+            arrayUnion,
+            arrayRemove,
+            ref,
+            uploadBytes,
+            getDownloadURL,
+            deleteObject,
+            orderBy,
+            httpsCallable
+        };
+    </script>
+
+    <link rel="stylesheet" href="./css/style.css" />
+    <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.566.0"
+  }
+}
+</script>
+</head>
+
+<body class="bg-[#f3f4f6] text-gray-900 h-screen w-screen overflow-hidden flex">
+
+    <!-- App Container -->
+    <div id="app" class="flex w-full h-full"></div>
+
+    <!-- Modal Portal -->
+    <div id="modal-portal"></div>
+
+    <!-- Main Logic Scripts (Split) -->
+    <script src="./js/mockData.js"></script>
+    <script src="./js/state.js"></script>
+    <script src="./js/helpers.js"></script>
+    <script src="./js/actions.js"></script>
+    <script src="./js/render.js"></script>
+    <script src="./js/modals.js"></script>
+    <script src="./js/auth.js"></script>
+    <script src="./js/app.js"></script>
+</body>
+
+</html>

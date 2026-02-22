@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 辅助函数：检查是否已登录
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // 辅助函数：检查是否是文档所有者
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Users 集合规则
+    match /users/{userId} {
+      // 所有登录用户可以读取所有用户信息（用于搜索和显示成员）
+      allow read: if isSignedIn();
+      
+      // 只有用户本人可以创建和修改自己的文档
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isOwner(userId);
+      
+      // 不允许删除用户文档
+      allow delete: if false;
+    }
+    
+    // Projects 集合规则
+    match /projects/{projectId} {
+      // 所有登录用户可以读取项目（因为需要搜索和邀请）
+      allow read: if isSignedIn();
+      
+      // 任何登录用户都可以创建项目
+      allow create: if isSignedIn() 
+                    && request.auth.uid == request.resource.data.ownerId
+                    && request.auth.uid in request.resource.data.memberIds;
+      
+      // 只有项目成员可以更新项目（添加成员等）
+      allow update: if isSignedIn() 
+                    && request.auth.uid in resource.data.memberIds;
+      
+      // 只有项目 Owner 可以删除项目
+      allow delete: if isSignedIn() 
+                    && request.auth.uid == resource.data.ownerId;
+    }
+    
+    // Tasks 集合规则
+    match /tasks/{taskId} {
+      // 所有登录用户可以读取任务
+      allow read: if isSignedIn();
+      
+      // 任何登录用户都可以创建任务
+      allow create: if isSignedIn();
+      
+      // 任何登录用户都可以更新任务（锁定、上传、待办等）
+      allow update: if isSignedIn();
+      
+      // 项目的 Owner 或任务创建者可以删除任务
+      allow delete: if isSignedIn();
+    }
+    
+    // ActivationCodes 集合规则
+    // 写入和删除由 Cloud Functions (admin SDK) 执行，不需要客户端权限
+    match /activationCodes/{codeId} {
+      // 管理员可以读取激活码列表
+      allow read: if isSignedIn() 
+                  && request.auth.uid == '0gKyPFlHBGg6jdljKDZ02gP8zGl1';
+      
+      // 客户端不允许直接写入/删除，由 Cloud Functions 处理
+      allow write: if false;
+    }
+  }
+}
