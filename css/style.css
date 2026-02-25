@@ -6,6 +6,11 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
 /* Animations */
 .fade-in { animation: fadeIn 0.2s ease-in-out; }
 @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+.todo-text-enter { animation: todoTextEnter 0.72s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes todoTextEnter {
+    from { opacity: 0; transform: translateX(30px); }
+    to { opacity: 1; transform: translateX(0); }
+}
 
 /* Rich Text Editor */
 .rich-editor:empty:before {
@@ -15,3 +20,8 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     display: block; 
 }
 .rich-editor b, .rich-editor strong { font-weight: bold; }
+
+/* Better emoji rendering fallback across platforms */
+.emoji-glyph {
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}

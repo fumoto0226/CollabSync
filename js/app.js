@@ -33,7 +33,8 @@ function Render() {
 
     // Restore Rich Editor Content (for edit mode switching)
     const editor = document.getElementById('todo-editor');
-    if (editor && state.ui.editorContent) {
+    const currentTaskId = state.activeView?.type === 'task_detail' ? state.activeView.taskId : null;
+    if (editor && state.ui.editorTaskId === currentTaskId && state.ui.editorContent) {
         if (editor.innerHTML !== state.ui.editorContent) {
             editor.innerHTML = state.ui.editorContent;
             // Set cursor to end

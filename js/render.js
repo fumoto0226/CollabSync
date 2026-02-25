@@ -35,7 +35,34 @@ function RenderSidebar() {
         const isActive = (activeView.type === 'project_dashboard' && activeView.projectId === p.id) || (activeView.type === 'new_task' && activeView.projectId === p.id);
         const isExpanded = expandedProjects[p.id];
         const pTasks = state.tasks.filter(t => t.projectId === p.id);
-        const members = state.users.filter(u => (p.memberIds || p.members || []).includes(u.uid));
+        const memberIds = (p.memberIds || p.members || []);
+        const occupiedUids = new Set(
+            pTasks
+                .filter(t => t.isLocked && t.lockedBy)
+                .map(t => t.lockedBy)
+        );
+        const isMeOccupied = occupiedUids.has(uid);
+        const members = state.users
+            .filter(u => memberIds.includes(u.uid))
+            .sort((a, b) => {
+                const aIsMe = a.uid === uid;
+                const bIsMe = b.uid === uid;
+                const aOccupied = occupiedUids.has(a.uid);
+                const bOccupied = occupiedUids.has(b.uid);
+
+                // 自己占用时，自己永远排最前。
+                if (isMeOccupied) {
+                    if (aIsMe && !bIsMe) return -1;
+                    if (!aIsMe && bIsMe) return 1;
+                }
+
+                // 其次所有占用中的成员优先显示。
+                if (aOccupied && !bOccupied) return -1;
+                if (!aOccupied && bOccupied) return 1;
+
+                // 最后按项目成员原始顺序稳定展示。
+                return memberIds.indexOf(a.uid) - memberIds.indexOf(b.uid);
+            });
         const expanded = !!state.ui.memberListExpandedByProjectId[p.id];
         const collapsedCount = 3;
         const displayMembers = expanded ? members : members.slice(0, collapsedCount);
@@ -134,7 +161,14 @@ function RenderSidebar() {
                     <span class="truncate flex-1 text-sm font-medium">${p.name} <span class="text-xs opacity-50 font-normal">(${pTasks.filter(t => t.completed).length}/${pTasks.length})</span></span>
                     
                     <div class="flex -space-x-1.5 ml-2 cursor-pointer hover:opacity-80" onclick="event.stopPropagation(); window.dispatch('openMemberModal', '${p.id}')">
-                        ${displayMembers.map(m => AvatarEmoji(m.emoji, 'w-5 h-5 rounded-full border border-white bg-gray-200', 'text-[12px]')).join('')}
+                        ${displayMembers.map(m => {
+                            const occupied = occupiedUids.has(m.uid);
+                            const isMe = m.uid === uid;
+                            const borderClass = occupied
+                                ? (isMe ? 'border-emerald-600' : 'border-purple-600')
+                                : 'border-white';
+                            return AvatarEmoji(m.emoji, `w-5 h-5 rounded-full border ${borderClass} bg-gray-200`, 'text-[12px]');
+                        }).join('')}
                         ${(!expanded && hiddenCount > 0) ? `<div class="w-5 h-5 rounded-full border border-white bg-gray-200 text-[8px] flex items-center justify-center text-gray-600 font-bold">+${hiddenCount}</div>` : ''}
                     </div>
                     
@@ -487,6 +521,7 @@ function RenderMain() {
         const statusBg = isMe ? BG_ME : BG_OTHER;
         const activeTodos = t.todos.filter(x => !x.completed).sort((a, b) => b.createdAt - a.createdAt);
         const completedTodos = t.todos.filter(x => x.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+        const todoAnim = state.ui.todoAnim;
         const durationStr = t.isLocked ? getDuration(t.lockedAt) : '00:00';
 
         return `
@@ -609,7 +644,7 @@ function RenderMain() {
                                 ${(!t.isLocked && t.file?.version > 0) ? `
                                     <button onclick="window.dispatch('openHistoryModal', '${t.id}')" 
                                         class="flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-transform active:scale-95 ${t.completed ? 'bg-gray-300 text-gray-600 cursor-not-allowed hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}" ${t.completed ? 'disabled' : ''}>
-                                        ${Icon('download', 'mr-2', 20)} ${t.completed ? '任务已完成' : '下载并开始'}
+                                        ${Icon('download', 'mr-2', 20)} ${t.completed ? '任务已完成' : '开始占用'}
                                     </button>
                                 ` : ''}
 
@@ -633,7 +668,7 @@ function RenderMain() {
 
                         <div class="bg-white rounded-xl shadow-sm border p-6">
                             <div class="flex justify-between items-center mb-6">
-                                 <h3 class="text-lg font-bold text-gray-800 flex items-center">${Icon('check-circle-2', 'mr-2 text-indigo-500', 20)} 待办事项 / 备注</h3>
+                                 <h3 class="text-lg font-bold text-gray-800 flex items-center">${Icon('check-circle-2', 'mr-2 text-indigo-500', 20)} 待办事项 <span class="ml-2 text-sm text-gray-400 font-semibold">(${completedTodos.length}/${t.todos.length})</span></h3>
                             </div>
                             
                             <div class="mb-6 border rounded-xl overflow-hidden shadow-sm focus-within:ring-2 ring-indigo-500 transition-all bg-white relative">
@@ -648,6 +683,7 @@ function RenderMain() {
                                 <div id="todo-editor" contenteditable="${t.completed ? 'false' : 'true'}" 
                                      class="p-4 min-h-[100px] outline-none text-sm text-gray-800 rich-editor ${t.completed ? 'bg-gray-50' : ''}" 
                                      placeholder="${t.completed ? '已完成任务不可编辑' : '在这里添加新的待办'}"
+                                     oninput="window.dispatch('updateEditorDraft', '${t.id}', this.innerHTML)"
                                      onkeydown="if(event.key==='Enter' && event.shiftKey) {}"></div>
                                 
                                 <div class="p-2 flex justify-end gap-2 bg-white border-t border-gray-50">
@@ -672,10 +708,13 @@ function RenderMain() {
 
                             <div class="space-y-2">
                                 ${activeTodos.map(todo => `
+                                    ${(() => {
+            const isAnim = todoAnim && todoAnim.taskId === t.id && todoAnim.todoId === todo.id && (Date.now() - todoAnim.ts) < 1200;
+            return `
                                     <div class="flex items-start group hover:bg-gray-50 p-3 rounded-lg transition-colors border border-transparent hover:border-gray-100 relative ${state.ui.editingTodoId === todo.id ? 'ring-2 ring-blue-100 bg-blue-50' : ''}">
                                         <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-gray-300 group-hover:text-indigo-500 transition-colors cursor-pointer">${Icon('circle', '', 20)}</div>
                                         <div class="flex-1 min-w-0 pt-0.5">
-                                            <div class="text-sm text-gray-700 font-medium break-words whitespace-normal leading-relaxed">${todo.text}</div>
+                                            <div class="text-sm text-gray-700 font-medium break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
                                         </div>
                                         <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
                                             <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 
@@ -688,13 +727,18 @@ function RenderMain() {
                                             </button>
                                         </div>
                                     </div>
+                                `;
+        })()}
                                 `).join('')}
                                 ${activeTodos.length && completedTodos.length ? '<div class="h-px bg-gray-100 my-4 mx-2"></div>' : ''}
                                 ${completedTodos.map(todo => `
+                                    ${(() => {
+            const isAnim = todoAnim && todoAnim.taskId === t.id && todoAnim.todoId === todo.id && (Date.now() - todoAnim.ts) < 1200;
+            return `
                                     <div class="flex items-start group p-3 rounded-lg transition-colors opacity-60 hover:opacity-100 relative">
                                         <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>
                                         <div class="flex-1 min-w-0 pt-0.5">
-                                            <div class="text-sm text-gray-400 line-through break-words whitespace-normal leading-relaxed">${todo.text}</div>
+                                            <div class="text-sm text-gray-400 line-through break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
                                         </div>
                                         <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
                                             <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 
@@ -707,6 +751,8 @@ function RenderMain() {
                                             </button>
                                         </div>
                                     </div>
+                                `;
+        })()}
                                 `).join('')}
                                 ${t.todos.length === 0 ? '<div class="text-center py-8 text-gray-400 text-sm italic">暂无待办</div>' : ''}
                             </div>

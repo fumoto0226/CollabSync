@@ -46,7 +46,9 @@ let state = {
         draftSearchResult: null, // 创建项目时搜索成员的结果
         inviteSearchResult: null, // 成员管理弹窗搜索的结果
         editingTodoId: null,
+        editorTaskId: null,
         editorContent: '',
+        todoAnim: null,
         isUploading: false,
         aiLoading: false,
         projectSummary: '',

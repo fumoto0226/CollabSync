@@ -1183,15 +1183,21 @@ const Actions = {
         const editor = document.getElementById('todo-editor');
         if (editor) editor.focus();
     },
+    updateEditorDraft: (tid, html) => {
+        state.ui.editorTaskId = tid;
+        state.ui.editorContent = html || '';
+    },
     setEditingTodo: (tid, todoId) => {
         const t = state.tasks.find(t => t.id === tid);
         const todo = t.todos.find(td => td.id === todoId);
         state.ui.editingTodoId = todoId;
+        state.ui.editorTaskId = tid;
         state.ui.editorContent = todo.text;
         Render();
     },
     cancelEditingTodo: () => {
         state.ui.editingTodoId = null;
+        state.ui.editorTaskId = null;
         state.ui.editorContent = '';
         Render();
     },
@@ -1200,9 +1206,13 @@ const Actions = {
         const editor = document.getElementById('todo-editor');
         if (!editor || !editor.innerHTML.trim()) return;
         const t = state.tasks.find(t => t.id === tid);
-        const todo = t.todos.find(td => td.id === state.ui.editingTodoId);
+        const editedTodoId = state.ui.editingTodoId;
+        const todo = t.todos.find(td => td.id === editedTodoId);
         if (todo) { todo.text = editor.innerHTML; }
-        state.ui.editingTodoId = null; state.ui.editorContent = '';
+        if (todo) {
+            state.ui.todoAnim = { taskId: tid, todoId: todo.id, ts: Date.now() };
+        }
+        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = '';
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (err) {
@@ -1217,8 +1227,10 @@ const Actions = {
         const html = editor.innerHTML;
         const t = state.tasks.find(t => t.id === tid);
         t.todos = t.todos.filter(td => td.id !== state.ui.editingTodoId);
-        t.todos.push({ id: `td${Date.now()}`, text: html, completed: false, createdAt: Date.now() });
-        state.ui.editingTodoId = null; state.ui.editorContent = '';
+        const newTodoId = `td${Date.now()}`;
+        t.todos.push({ id: newTodoId, text: html, completed: false, createdAt: Date.now() });
+        state.ui.todoAnim = { taskId: tid, todoId: newTodoId, ts: Date.now() };
+        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = '';
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (err) {
@@ -1232,8 +1244,10 @@ const Actions = {
         if (!editor || !editor.innerHTML.trim()) return;
         const html = editor.innerHTML;
         const t = state.tasks.find(t => t.id === tid);
-        t.todos.push({ id: `td${Date.now()}`, text: html, completed: false, createdAt: Date.now() });
-        editor.innerHTML = ''; state.ui.editorContent = '';
+        const newTodoId = `td${Date.now()}`;
+        t.todos.push({ id: newTodoId, text: html, completed: false, createdAt: Date.now() });
+        state.ui.todoAnim = { taskId: tid, todoId: newTodoId, ts: Date.now() };
+        editor.innerHTML = ''; state.ui.editorTaskId = null; state.ui.editorContent = '';
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (err) {
@@ -1245,7 +1259,7 @@ const Actions = {
         const { db, doc, updateDoc } = window.fb;
         const t = state.tasks.find(t => t.id === tid);
         t.todos = t.todos.filter(td => td.id !== tdid);
-        if (state.ui.editingTodoId === tdid) { state.ui.editingTodoId = null; state.ui.editorContent = ''; }
+        if (state.ui.editingTodoId === tdid) { state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; }
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (err) {

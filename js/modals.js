@@ -355,6 +355,18 @@ function RenderModals() {
                         ` : ''}
 
                         <div class="space-y-3">
+                            ${(!t.isLocked && !t.completed) ? `
+                                <div class="bg-white border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-bold text-gray-800">直接开始占用</h4>
+                                        <p class="text-xs text-gray-500 mt-0.5">不下载任何版本，直接进入占用状态</p>
+                                    </div>
+                                    <button onclick="window.dispatch('startTask', '${t.id}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-50 transition-colors shadow-sm">
+                                        ${Icon('play', 'mr-2', 14)} 开始占用
+                                    </button>
+                                </div>
+                            ` : ''}
+
                             ${displayVersions.map(v => `
                                 <div class="bg-white border ${v.isLatest ? 'border-blue-200 shadow-sm' : 'border-gray-200'} rounded-xl p-4 flex items-center justify-between hover:border-blue-300 transition-colors group">
                                     <div class="flex items-center gap-4">
@@ -378,7 +390,7 @@ function RenderModals() {
                                             ${Icon('download', 'mr-2', 14)} 仅下载
                                         </button>`
                 : `<button onclick="window.dispatch('startTaskWithDownload', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-800 hover:text-white hover:border-transparent transition-colors shadow-sm">
-                                            ${Icon('download', 'mr-2', 14)} 下载并开始
+                                            ${Icon('download', 'mr-2', 14)} 下载并占用
                                         </button>`
             }
                                 </div>

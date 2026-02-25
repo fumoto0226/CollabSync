@@ -21,17 +21,26 @@ const AIService = {
     }
 };
 
-const EMOJI_POOL = "🐶🐰🐻‍❄️🐮🐵🐒🐤🐱🦊🐨🐷🙈🐣🐭🐻🐯🐽🙉🐧🐥🐹🐼🦁🙊🐦🪿🦆🦄🐜🦟🐦‍⬛🐺🦋🦅🐗🐝🐌🪲🦉🐴🐞🦖🪼🐳🐊🦍🦐🦧🐙🦞🐟🦀🐬🦭🐩🐈‍⬛🦥🦔🕊️🦜🐇🦫🐀🐉🦃🦢🦝🦦🐿️🐲🐦‍🔥🍏🍋🍇🍒🥥🥑🥒🍎🍋‍🟩🍓🍑🧊🥝🫛🌶️🍐🍌🫐🥭🍅🥦🫑🍊🍉🍈🍍🍆🌽🥕🥔🥐🥨🥩🌭🫒🍣🍤🥪🍱🍙🥫🥟🍚🥗🍘🍥🍡🍿🥜🥠🍧🧁🍭🍩🥛🍯🍪🌰🍫🎂🍦🍢🍬🍰🍨🥮🍼🧊⚽️🥎🥏🏀🎾🎱🏈🏐🪀⚾️🏉🏓🚗🚨🚘🚃✈️🚀🛟⛺️⛰️🏠💿📟☎️💎🧨🔮💈💊🩸🧽🎁🛎️🪣🎈💛🧡❤️🩷💚🩵💙💜🤎🤍🩶🖤💔❤️‍🔥❤️‍🩹💝💘💖💗⚠️🔰💢😀😆🤣😇😌😗😛😃🥹🥲🙂😍😙😝😄😅☺️🙃🥰😚😜😁😂😊😉😘😋🤪🤨🥸😩😤🧐🤩🥺😠🤓🥳🙂‍↔️😖😢😡😎😫😭🤬🤯😶‍🌫️😱😳🥵🥶😰🫨🤥🫠🫡🙄😵‍💫🤤😵😴🥱😪😮‍💨🤢😈🤡🤑🤧🤐🤕💩👽👻💀☠️🎃👾🤖💩🤡🤲👊😻🙀👌🫀👀👷‍♂️🧑‍💻👩‍💻🧑‍🚀🥷🙅🙅‍♀️💆‍♂️🙎‍♂️🙎‍♀️🤷‍♀️🤦‍♂️🤦🤦‍♀️🩳🧤🍄🌏⭐️🍔🌭🍟🍖🥩🥪🥨🧀";
-const EMOJIS = Array.from(EMOJI_POOL);
+const EMOJI_POOL = `🐶🐰🐻‍❄️🐮🐵🐒🐤🐱🦊🐨🐷🙈🐣🐭🐻🐯🐽🙉🐧🐥🐹🐼🦁🙊🐦🪿🦆🦄🐜🦟🐦‍⬛🐺🦋🦅🐗🐝🐌🪲🦉🐴🐞🦖🪼🐳🐊🦍🦐🦧🐙🦞🐟🦀🐬🦭🐩🐈‍⬛🦥🦔🕊️🦜🐇🦫🐀🐉🦃🦢🦝🦦🐿️🐲🐦‍🔥🍏🍋🍇🍒🥥🥑🥒🍎🍋‍🟩🍓🍑🥝🫛🌶️🍐🍌🫐🥭🍅🥦🫑🍊🍉🍈🍍🍆🌽🥕🥔🥐🥨🥩🌭🫒🍣🍤🥪🍱🍙🥫🥟🍚🥗🍘🍥🍡🍿🥜🥠🍧🧁🍭🍩🥛🍯🍪🌰🍫🎂🍦🍢🍬🍰🍨🥮🍼🧊⚽️🥎🥏🏀🎾🎱🏈🏐🪀⚾️🏉🏓🚗🚨🚘🚃✈️🚀🛟⛺️⛰️🏠💿📟☎️💎🧨🔮💈💊🩸🧽🎁🛎️🪣🎈💛🧡❤️🩷💚🩵💙💜🤎🤍🩶🖤💔❤️‍🔥❤️‍🩹💝💘💖💗⚠️🔰💢😀😆🤣😇😌😗😛😃🥹🥲🙂😍😙😝😄😅☺️🙃🥰😚😜😁😂😊😉😘😋🤪🤨🥸😩😤🧐🤩🥺😠🤓🥳🙂‍↔️😖😢😡😎😫😭🤬🤯😶‍🌫️😱😳🥵🥶😰🫥🫨🤥🫠🫡🙄😵‍💫🤤😵😴🥱😪😮‍💨🤢😈🤡🤑🤧🤐🤕💩👽👻💀☠️🎃👾🤖💩🤡🤲👊😻🙀👌🫀👀👷‍♂️🧑‍💻👩‍💻🧑‍🚀🥷🙅‍♂️🙅‍♀️💆‍♂️🙎‍♂️🙎‍♀️🤷‍♀️🤦‍♂️🤦🤦‍♀️🩳🧤🍄🌏⭐️🍔🌭🍟🍖🥩🥪🧀`;
+const splitEmojiGraphemes = (input) => {
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+        const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
+        return Array.from(segmenter.segment(input), s => s.segment);
+    }
+    return Array.from(input);
+};
+const EMOJIS = splitEmojiGraphemes(EMOJI_POOL).filter(e => /\p{Extended_Pictographic}/u.test(e));
+const EMOJI_SET = new Set(EMOJIS);
 
 const pickRandomEmoji = () => EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+const normalizeEmoji = (emoji) => EMOJI_SET.has(emoji) ? emoji : '🙂';
 
 const getStoredEmoji = (userId) => localStorage.getItem(`emoji_${userId}`);
 const setStoredEmoji = (userId, emoji) => localStorage.setItem(`emoji_${userId}`, emoji);
 
 const AvatarEmoji = (emoji, sizeCls="w-8 h-8", textCls="text-xl") => `
     <div class="${sizeCls} flex items-center justify-center select-none bg-gray-50">
-        <span class="${textCls}">${emoji || '👤'}</span>
+        <span class="${textCls} emoji-glyph">${normalizeEmoji(emoji)}</span>
     </div>
 `;
 
@@ -42,7 +51,7 @@ const MOCK_USERS = [
     { id: 'u4', name: 'Tony', status: 'offline' },
 ].map(u => {
     let emoji = getStoredEmoji(u.id);
-    if (!emoji) {
+    if (!emoji || !EMOJI_SET.has(emoji)) {
         emoji = pickRandomEmoji();
         setStoredEmoji(u.id, emoji);
     }
