@@ -165,3 +165,17 @@ window.showConfirm = (msg) => {
 };
 
 window.alert = window.showAlert; // Override global alert
+
+// One-shot todo text animation trigger. Keep key for one render tick to avoid repeated restarts.
+window.queueTodoAnimation = (taskId, todoId) => {
+    if (!taskId || !todoId) return;
+    if (!state?.ui) return;
+    if (!state.ui.todoAnimKeys) state.ui.todoAnimKeys = {};
+    const key = `${taskId}:${todoId}`;
+    state.ui.todoAnimKeys[key] = true;
+    setTimeout(() => {
+        if (state?.ui?.todoAnimKeys && state.ui.todoAnimKeys[key]) {
+            delete state.ui.todoAnimKeys[key];
+        }
+    }, 80);
+};

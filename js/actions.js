@@ -1209,9 +1209,7 @@ const Actions = {
         const editedTodoId = state.ui.editingTodoId;
         const todo = t.todos.find(td => td.id === editedTodoId);
         if (todo) { todo.text = editor.innerHTML; }
-        if (todo) {
-            state.ui.todoAnim = { taskId: tid, todoId: todo.id, ts: Date.now() };
-        }
+        if (todo && window.queueTodoAnimation) window.queueTodoAnimation(tid, todo.id);
         state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = '';
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
@@ -1229,7 +1227,7 @@ const Actions = {
         t.todos = t.todos.filter(td => td.id !== state.ui.editingTodoId);
         const newTodoId = `td${Date.now()}`;
         t.todos.push({ id: newTodoId, text: html, completed: false, createdAt: Date.now() });
-        state.ui.todoAnim = { taskId: tid, todoId: newTodoId, ts: Date.now() };
+        if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
         state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = '';
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
@@ -1246,7 +1244,7 @@ const Actions = {
         const t = state.tasks.find(t => t.id === tid);
         const newTodoId = `td${Date.now()}`;
         t.todos.push({ id: newTodoId, text: html, completed: false, createdAt: Date.now() });
-        state.ui.todoAnim = { taskId: tid, todoId: newTodoId, ts: Date.now() };
+        if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
         editor.innerHTML = ''; state.ui.editorTaskId = null; state.ui.editorContent = '';
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });

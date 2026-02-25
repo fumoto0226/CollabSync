@@ -48,7 +48,7 @@ let state = {
         editingTodoId: null,
         editorTaskId: null,
         editorContent: '',
-        todoAnim: null,
+        todoAnimKeys: {},
         isUploading: false,
         aiLoading: false,
         projectSummary: '',

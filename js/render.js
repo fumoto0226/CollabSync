@@ -521,7 +521,7 @@ function RenderMain() {
         const statusBg = isMe ? BG_ME : BG_OTHER;
         const activeTodos = t.todos.filter(x => !x.completed).sort((a, b) => b.createdAt - a.createdAt);
         const completedTodos = t.todos.filter(x => x.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
-        const todoAnim = state.ui.todoAnim;
+        const todoAnimKeys = state.ui.todoAnimKeys || {};
         const durationStr = t.isLocked ? getDuration(t.lockedAt) : '00:00';
 
         return `
@@ -707,9 +707,8 @@ function RenderMain() {
                             </div>
 
                             <div class="space-y-2">
-                                ${activeTodos.map(todo => `
-                                    ${(() => {
-            const isAnim = todoAnim && todoAnim.taskId === t.id && todoAnim.todoId === todo.id && (Date.now() - todoAnim.ts) < 1200;
+                                ${activeTodos.map(todo => {
+            const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
             return `
                                     <div class="flex items-start group hover:bg-gray-50 p-3 rounded-lg transition-colors border border-transparent hover:border-gray-100 relative ${state.ui.editingTodoId === todo.id ? 'ring-2 ring-blue-100 bg-blue-50' : ''}">
                                         <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-gray-300 group-hover:text-indigo-500 transition-colors cursor-pointer">${Icon('circle', '', 20)}</div>
@@ -728,12 +727,10 @@ function RenderMain() {
                                         </div>
                                     </div>
                                 `;
-        })()}
-                                `).join('')}
+        }).join('')}
                                 ${activeTodos.length && completedTodos.length ? '<div class="h-px bg-gray-100 my-4 mx-2"></div>' : ''}
-                                ${completedTodos.map(todo => `
-                                    ${(() => {
-            const isAnim = todoAnim && todoAnim.taskId === t.id && todoAnim.todoId === todo.id && (Date.now() - todoAnim.ts) < 1200;
+                                ${completedTodos.map(todo => {
+            const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
             return `
                                     <div class="flex items-start group p-3 rounded-lg transition-colors opacity-60 hover:opacity-100 relative">
                                         <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>
@@ -752,8 +749,7 @@ function RenderMain() {
                                         </div>
                                     </div>
                                 `;
-        })()}
-                                `).join('')}
+        }).join('')}
                                 ${t.todos.length === 0 ? '<div class="text-center py-8 text-gray-400 text-sm italic">暂无待办</div>' : ''}
                             </div>
                         </div>

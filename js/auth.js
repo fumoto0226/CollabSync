@@ -76,9 +76,24 @@ function startDataSync(uid) {
 
     // 3. Sync Tasks (only tasks under my projects)
     unsubs.tasks = onSnapshot(collection(db, "tasks"), (snap) => {
+        const prevTasksById = new Map(state.tasks.map(t => [t.id, t]));
         const allTasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const myProjectIds = new Set(state.projects.map(p => p.id));
-        state.tasks = allTasks.filter(t => myProjectIds.has(t.projectId));
+        const nextTasks = allTasks.filter(t => myProjectIds.has(t.projectId));
+        state.tasks = nextTasks;
+
+        // Animate todos added/edited by others (or other clients).
+        nextTasks.forEach(t => {
+            const prev = prevTasksById.get(t.id);
+            if (!prev) return; // Skip first-seen tasks to avoid initial-load animation flood.
+            const prevTodoById = new Map((prev.todos || []).map(td => [td.id, td]));
+            (t.todos || []).forEach(td => {
+                const prevTd = prevTodoById.get(td.id);
+                if (!prevTd || prevTd.text !== td.text) {
+                    if (window.queueTodoAnimation) window.queueTodoAnimation(t.id, td.id);
+                }
+            });
+        });
 
         // 检查占用是否超过 99 小时，自动视为放弃编辑并写入活动记录
         const now = Date.now();
