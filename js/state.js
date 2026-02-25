@@ -35,6 +35,7 @@ let state = {
         memberModalProjectId: null,
         actionModalTaskId: null,
         historyModalTaskId: null,
+        startModalTaskId: null,
         editHistoryModalTaskId: null,
         editProjectId: null,
         editTaskId: null,

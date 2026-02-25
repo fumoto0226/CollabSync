@@ -642,7 +642,7 @@ function RenderMain() {
 
                             <div class="flex gap-4 mt-6">
                                 ${(!t.isLocked && t.file?.version > 0) ? `
-                                    <button onclick="window.dispatch('openHistoryModal', '${t.id}')" 
+                                    <button onclick="window.dispatch('openStartModal', '${t.id}')" 
                                         class="flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-transform active:scale-95 ${t.completed ? 'bg-gray-300 text-gray-600 cursor-not-allowed hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}" ${t.completed ? 'disabled' : ''}>
                                         ${Icon('download', 'mr-2', 20)} ${t.completed ? '任务已完成' : '开始占用'}
                                     </button>

@@ -724,6 +724,8 @@ const Actions = {
     // History & Edit History
     openHistoryModal: (tid) => { state.ui.historyModalTaskId = tid; Render(); },
     closeHistoryModal: () => { state.ui.historyModalTaskId = null; Render(); },
+    openStartModal: (tid) => { state.ui.startModalTaskId = tid; Render(); },
+    closeStartModal: () => { state.ui.startModalTaskId = null; Render(); },
     openEditHistoryModal: (tid) => { state.ui.editHistoryModalTaskId = tid; Render(); },
     closeEditHistoryModal: () => { state.ui.editHistoryModalTaskId = null; Render(); },
 
@@ -742,6 +744,7 @@ const Actions = {
         t.lockedBy = state.currentUser.uid;
         t.lockedAt = now;
         state.ui.historyModalTaskId = null;
+        state.ui.startModalTaskId = null;
         Render();
         try {
             await updateDoc(doc(db, 'tasks', tid), {

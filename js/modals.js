@@ -277,6 +277,101 @@ function RenderModals() {
         `;
     }
 
+    // Start Occupy Modal (separate from history modal)
+    if (state.ui.startModalTaskId) {
+        const tid = state.ui.startModalTaskId;
+        const t = state.tasks.find(x => x.id === tid);
+        const locker = state.users.find(u => u.uid === t?.lockedBy);
+
+        const versions = [];
+        if (t?.file && t.file.version > 0) {
+            versions.push({
+                version: t.file.version,
+                size: t.file.size,
+                ts: t.file.lastUpdated,
+                note: t.file.note || '',
+                isLatest: true
+            });
+        }
+        (t?.activities || []).forEach(act => {
+            if (act.type === 'upload' && !versions.find(v => v.version === act.version)) {
+                versions.push({
+                    version: act.version,
+                    size: act.size || 'Unknown',
+                    ts: act.timestamp,
+                    note: act.note || '',
+                    isLatest: false
+                });
+            }
+        });
+        versions.sort((a, b) => b.version - a.version);
+        const displayVersions = versions.slice(0, 3);
+
+        return `
+            <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 fade-in" onclick="if(event.target===this) window.dispatch('closeStartModal')">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+                    <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">开始占用</h3>
+                            <p class="text-sm text-gray-500 mt-1 font-mono">${t?.file?.name || 'File'}</p>
+                        </div>
+                        <button onclick="window.dispatch('closeStartModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-6 bg-emerald-50/30 space-y-4">
+                        ${t?.isLocked ? `
+                            <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-700 flex items-center justify-between">
+                                <span>${Icon('lock', 'inline-block mr-2', 14)}${locker?.name || '有人'} 正在占用，当前不可开始占用</span>
+                            </div>
+                        ` : `
+                            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-sm font-bold text-gray-800">直接开始占用</h4>
+                                    <p class="text-xs text-gray-500 mt-0.5">不下载任何版本，直接进入占用状态</p>
+                                </div>
+                                <button onclick="window.dispatch('startTask', '${t.id}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm">
+                                    ${Icon('play', 'mr-2', 14)} 开始占用
+                                </button>
+                            </div>
+                        `}
+
+                        <div class="space-y-3">
+                            ${displayVersions.map(v => `
+                                <div class="bg-white border ${v.isLatest ? 'border-emerald-200 shadow-sm' : 'border-gray-200'} rounded-xl p-4 flex items-center justify-between hover:border-emerald-300 transition-colors group">
+                                    <div class="flex items-center gap-4">
+                                        <div class="bg-gray-100 p-3 rounded-lg text-gray-500 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                                            ${Icon('file-clock', '', 24)}
+                                        </div>
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <h4 class="text-lg font-bold text-gray-800">v${v.version}</h4>
+                                                ${v.isLatest ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
+                                            </div>
+                                            <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
+                                                <span>${formatDate(v.ts)}</span> • <span>${v.size}</span>
+                                            </p>
+                                            ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">备注：${v.note}</p>` : ''}
+                                        </div>
+                                    </div>
+                                    ${t?.isLocked
+                ? `<button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                            ${Icon('download', 'mr-2', 14)} 仅下载
+                                        </button>`
+                : `<button onclick="window.dispatch('startTaskWithDownload', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm">
+                                            ${Icon('download', 'mr-2', 14)} 下载并占用
+                                        </button>`
+            }
+                                </div>
+                            `).join('')}
+
+                            ${displayVersions.length === 0 ? '<div class="text-center text-gray-400 py-4">暂无可用版本</div>' : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     // Version History Modal
     if (state.ui.historyModalTaskId) {
         const tid = state.ui.historyModalTaskId;
