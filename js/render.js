@@ -522,6 +522,12 @@ function RenderMain() {
         const activeTodos = t.todos.filter(x => !x.completed).sort((a, b) => b.createdAt - a.createdAt);
         const completedTodos = t.todos.filter(x => x.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
         const todoAnimKeys = state.ui.todoAnimKeys || {};
+        const mentionPicker = state.ui.mentionPicker || {};
+        const mentionCandidates = mentionPicker.visible && mentionPicker.taskId === t.id
+            ? mentionPicker.candidateUids
+                .map(uid => state.users.find(u => u.uid === uid))
+                .filter(Boolean)
+            : [];
         const durationStr = t.isLocked ? getDuration(t.lockedAt) : '00:00';
 
         return `
@@ -671,38 +677,74 @@ function RenderMain() {
                                  <h3 class="text-lg font-bold text-gray-800 flex items-center">${Icon('check-circle-2', 'mr-2 text-indigo-500', 20)} 待办事项 <span class="ml-2 text-sm text-gray-400 font-semibold">(${completedTodos.length}/${t.todos.length})</span></h3>
                             </div>
                             
-                            <div class="mb-6 border rounded-xl overflow-hidden shadow-sm focus-within:ring-2 ring-indigo-500 transition-all bg-white relative">
+                            <div class="mb-6 border rounded-xl overflow-visible shadow-sm focus-within:ring-2 ring-indigo-500 transition-all bg-white relative">
                                 <div class="flex items-center gap-1 p-2 border-b bg-gray-50 text-gray-600">
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'bold')" class="p-1.5 hover:bg-gray-200 rounded text-xs font-bold w-8" title="加粗">B</button>
                                     <div class="w-px h-4 bg-gray-300 mx-1"></div>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'backColor', '#fef08a')" class="w-6 h-6 rounded bg-yellow-200 hover:ring-2 ring-yellow-400 border border-yellow-300 mx-1" title="黄色背景"></button>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'backColor', '#bbf7d0')" class="w-6 h-6 rounded bg-green-200 hover:ring-2 ring-green-400 border border-green-300 mx-1" title="绿色背景"></button>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'backColor', '#bfdbfe')" class="w-6 h-6 rounded bg-blue-200 hover:ring-2 ring-blue-400 border border-blue-300 mx-1" title="蓝色背景"></button>
+                                    <button onmousedown="event.preventDefault()" onclick="window.dispatch('insertMentionTrigger', '${t.id}')" class="px-2 h-8 rounded border border-gray-200 text-xs font-bold hover:bg-gray-100 text-gray-600 ml-1" title="@ 提及">@</button>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'removeFormat')" class="ml-auto p-1.5 hover:bg-gray-200 rounded text-xs" title="清除格式">${Icon('eraser', '', 14)}</button>
                                 </div>
-                                <div id="todo-editor" contenteditable="${t.completed ? 'false' : 'true'}" 
-                                     class="p-4 min-h-[100px] outline-none text-sm text-gray-800 rich-editor ${t.completed ? 'bg-gray-50' : ''}" 
-                                     placeholder="${t.completed ? '已完成任务不可编辑' : '在这里添加新的待办'}"
-                                     oninput="window.dispatch('updateEditorDraft', '${t.id}', this.innerHTML)"
-                                     onkeydown="if(event.key==='Enter' && event.shiftKey) {}"></div>
-                                
-                                <div class="p-2 flex justify-end gap-2 bg-white border-t border-gray-50">
-                                    ${state.ui.editingTodoId ? `
-                                        <button onclick="window.dispatch('saveTodo', '${t.id}')" 
-                                            class="px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-green-700 transition-colors flex items-center">
-                                            ${Icon('save', 'mr-1.5', 14)} 保存修改
-                                        </button>
-                                        <button onclick="window.dispatch('reAddTodo', '${t.id}')" 
-                                            class="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-blue-700 transition-colors flex items-center">
-                                            ${Icon('refresh-cw', 'mr-1.5', 14)} 重新添加
-                                        </button>
-                                        <button onclick="window.dispatch('cancelEditingTodo')" class="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">取消</button>
-                                    ` : `
-                                        <button onclick="window.dispatch('addTodo', '${t.id}')" 
-                                            class="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-indigo-700 transition-colors flex items-center">
-                                            ${Icon('plus', 'mr-1.5', 14)} 添加待办
-                                        </button>
-                                    `}
+                                <div class="relative">
+                                    <div id="todo-editor" contenteditable="${t.completed ? 'false' : 'true'}" 
+                                         class="p-4 min-h-[100px] outline-none text-sm text-gray-800 rich-editor ${t.completed ? 'bg-gray-50' : ''}" 
+                                         placeholder="${t.completed ? '已完成任务不可编辑' : '在这里添加新的待办（可直接粘贴或拖入图片）'}"
+                                         oninput="window.dispatch('updateEditorDraft', '${t.id}', this.innerHTML)"
+                                         onpaste="window.dispatch('handleTodoPaste', event, '${t.id}')"
+                                         ondragover="window.dispatch('handleTodoDragOver', event)"
+                                         ondrop="window.dispatch('handleTodoDrop', event, '${t.id}')"
+                                         onkeydown="window.dispatch('handleTodoMentionBackspace', event, '${t.id}'); window.dispatch('handleTodoEditorKeyDown', event, '${t.id}'); if(event.key==='Enter' && event.shiftKey) {}"
+                                         onkeyup="window.dispatch('handleTodoEditorKeyUp', event, '${t.id}')"></div>
+                                    ${mentionCandidates.length ? `
+                                        <div class="mention-float-panel" style="left:${mentionPicker.x || 12}px; top:${mentionPicker.y || 12}px;">
+                                            ${mentionCandidates.map((u, idx) => {
+            const isMe = u.uid === state.currentUser.uid;
+            const isActive = idx === (mentionPicker.selectedIndex ?? -1);
+            const base = 'w-full text-left px-3 py-2 text-sm text-gray-900';
+            const hover = isMe ? 'hover:bg-emerald-50 hover:text-emerald-700' : 'hover:bg-purple-50 hover:text-purple-700';
+            const active = isActive ? (isMe ? 'bg-emerald-50 text-emerald-700' : 'bg-purple-50 text-purple-700') : '';
+            return `<button onmousedown="event.preventDefault(); window.dispatch('pickMentionFromPicker', event, '${t.id}', '${u.uid}')" class="${base} ${hover} ${active}">@${u.name}</button>`;
+        }).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="p-2 flex items-center justify-between gap-3 bg-white border-t border-gray-50">
+                                    <div class="flex flex-wrap gap-2 items-center flex-1 min-w-0">
+                                        ${(state.ui.editorImages || []).map((img, idx) => {
+            const previewUrl = (typeof img === 'object' && img) ? (img.previewUrl || img.url || '') : String(img || '');
+            const imageId = (typeof img === 'object' && img && img.id) ? img.id : `legacy:${idx}`;
+            return `<div class="todo-attach-pill">
+                                                    <img src="${previewUrl}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(previewUrl).replace(/'/g, "\\'")}')" />
+                                                    <span class="todo-attach-pill-name">图片${idx + 1}</span>
+                                                    <button class="todo-attach-remove" onclick="window.dispatch('removeEditorImage', '${String(imageId).replace(/'/g, "\\'")}')">${Icon('x', '', 12)}</button>
+                                               </div>`;
+        }).join('')}
+                                    </div>
+                                    <div class="flex items-center justify-end gap-2 shrink-0">
+                                        ${state.ui.todoSubmitUploading ? `
+                                            <div class="todo-uploading-hint">
+                                                上传中<span class="uploading-dots"><i>.</i><i>.</i><i>.</i></span>
+                                            </div>
+                                        ` : ''}
+                                        ${state.ui.editingTodoId ? `
+                                            <button onclick="window.dispatch('saveTodo', '${t.id}')" 
+                                                class="px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-green-700 transition-colors flex items-center ${state.ui.todoSubmitUploading ? 'opacity-60 cursor-not-allowed' : ''}" ${state.ui.todoSubmitUploading ? 'disabled' : ''}>
+                                                ${Icon('save', 'mr-1.5', 14)} 保存修改
+                                            </button>
+                                            <button onclick="window.dispatch('reAddTodo', '${t.id}')" 
+                                                class="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-blue-700 transition-colors flex items-center ${state.ui.todoSubmitUploading ? 'opacity-60 cursor-not-allowed' : ''}" ${state.ui.todoSubmitUploading ? 'disabled' : ''}>
+                                                ${Icon('refresh-cw', 'mr-1.5', 14)} 重新添加
+                                            </button>
+                                            <button onclick="window.dispatch('cancelEditingTodo')" class="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 ${state.ui.todoSubmitUploading ? 'opacity-60 cursor-not-allowed' : ''}" ${state.ui.todoSubmitUploading ? 'disabled' : ''}>取消</button>
+                                        ` : `
+                                            <button onclick="window.dispatch('addTodo', '${t.id}')" 
+                                                class="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-indigo-700 transition-colors flex items-center ${state.ui.todoSubmitUploading ? 'opacity-60 cursor-not-allowed' : ''}" ${state.ui.todoSubmitUploading ? 'disabled' : ''}>
+                                                ${Icon('plus', 'mr-1.5', 14)} 添加待办
+                                            </button>
+                                        `}
+                                    </div>
                                 </div>
                             </div>
 
@@ -714,6 +756,11 @@ function RenderMain() {
                                         <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-gray-300 group-hover:text-indigo-500 transition-colors cursor-pointer">${Icon('circle', '', 20)}</div>
                                         <div class="flex-1 min-w-0 pt-0.5">
                                             <div class="text-sm text-gray-700 font-medium break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
+                                            ${(todo.images && todo.images.length) ? `
+                                                <div class="flex flex-wrap gap-2 mt-2">
+                                                    ${todo.images.map((img, idx) => `<div class="todo-attach-pill todo-attach-pill-readonly"><img src="${img}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(img).replace(/'/g, "\\'")}')" /><span class="todo-attach-pill-name">图片${idx + 1}</span></div>`).join('')}
+                                                </div>
+                                            ` : ''}
                                         </div>
                                         <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
                                             <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 
@@ -736,6 +783,11 @@ function RenderMain() {
                                         <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>
                                         <div class="flex-1 min-w-0 pt-0.5">
                                             <div class="text-sm text-gray-400 line-through break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
+                                            ${(todo.images && todo.images.length) ? `
+                                                <div class="flex flex-wrap gap-2 mt-2">
+                                                    ${todo.images.map((img, idx) => `<div class="todo-attach-pill todo-attach-pill-readonly"><img src="${img}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(img).replace(/'/g, "\\'")}')" /><span class="todo-attach-pill-name">图片${idx + 1}</span></div>`).join('')}
+                                                </div>
+                                            ` : ''}
                                         </div>
                                         <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
                                             <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 

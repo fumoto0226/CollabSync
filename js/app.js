@@ -14,6 +14,17 @@ function Render() {
         window.lucide.createIcons();
     }
 
+    // Apply mention color by viewer identity (@me = green, @others = purple)
+    document.querySelectorAll('.todo-mention').forEach(el => {
+        const mentionUid = el.getAttribute('data-mention-uid');
+        el.classList.remove('todo-mention-me', 'todo-mention-other');
+        if (mentionUid && state.currentUser?.uid && mentionUid === state.currentUser.uid) {
+            el.classList.add('todo-mention-me');
+        } else {
+            el.classList.add('todo-mention-other');
+        }
+    });
+
     restoreScroll(); // Restore scroll position
 
     // Restore input focus

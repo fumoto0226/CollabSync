@@ -503,7 +503,7 @@ const Actions = {
         }
     },
     deleteProject: async (pid) => {
-        const { db, doc, deleteDoc, collection, query, where, getDocs, updateDoc, arrayRemove, getDoc, storage, ref, deleteObject } = window.fb;
+        const { db, doc, deleteDoc, collection, query, where, getDocs, updateDoc, arrayRemove, getDoc } = window.fb;
         try {
             const pRef = doc(db, "projects", pid);
             const pSnap = await getDoc(pRef);
@@ -527,13 +527,8 @@ const Actions = {
                 (tData.activities || []).forEach(act => {
                     if (act.type === 'upload' && act.path) paths.push(act.path);
                 });
-                await Promise.all(paths.map(async p => {
-                    try {
-                        await deleteObject(ref(storage, p));
-                    } catch (e) {
-                        console.warn('删除 Storage 文件失败（忽略）:', p, e);
-                    }
-                }));
+                const todoImageTargets = Actions.collectTodoImageTargets(tData.todos || []);
+                await Actions.deleteStorageTargets([...paths, ...todoImageTargets]);
                 await deleteDoc(tDoc.ref);
             }
 
@@ -634,7 +629,7 @@ const Actions = {
     },
     deleteTaskReal: async (tid) => {
         // 真正从 Firestore 删除任务，并清理 Storage 文件
-        const { db, doc, deleteDoc, storage, ref, deleteObject } = window.fb;
+        const { db, doc, deleteDoc } = window.fb;
         const t = state.tasks.find(x => x.id === tid);
         if (!t) return;
 
@@ -645,13 +640,8 @@ const Actions = {
             (t.activities || []).forEach(act => {
                 if (act.type === 'upload' && act.path) paths.push(act.path);
             });
-            await Promise.all(paths.map(async p => {
-                try {
-                    await deleteObject(ref(storage, p));
-                } catch (e) {
-                    console.warn('删除 Storage 文件失败（忽略）:', p, e);
-                }
-            }));
+            const todoImageTargets = Actions.collectTodoImageTargets(t.todos || []);
+            await Actions.deleteStorageTargets([...paths, ...todoImageTargets]);
 
             await deleteDoc(doc(db, "tasks", tid));
             // 本地立刻清理
@@ -1181,10 +1171,558 @@ const Actions = {
     },
 
     // Editor Actions
+    openImagePreview: (url) => {
+        if (!url) return;
+        state.ui.imagePreviewUrl = url;
+        Render();
+    },
+    closeImagePreview: () => {
+        state.ui.imagePreviewUrl = null;
+        Render();
+    },
+    closeMentionPicker: () => {
+        state.ui.mentionPicker = {
+            visible: false,
+            taskId: null,
+            query: '',
+            selectedIndex: -1,
+            candidateUids: [],
+            x: 12,
+            y: 12
+        };
+    },
+    getMentionToneClass: (uid) => {
+        return (uid && state.currentUser?.uid && uid === state.currentUser.uid)
+            ? 'todo-mention-me'
+            : 'todo-mention-other';
+    },
+    buildMentionSpan: (user) => {
+        const span = document.createElement('span');
+        span.className = `todo-mention ${Actions.getMentionToneClass(user.uid)}`;
+        span.setAttribute('contenteditable', 'false');
+        span.setAttribute('data-mention-uid', user.uid);
+        span.textContent = `@${user.name || '成员'}`;
+        return span;
+    },
+    insertMentionTrigger: (tid) => {
+        const editor = document.getElementById('todo-editor');
+        if (!editor) return;
+        editor.focus();
+        const candidates = Actions.getTodoMentionCandidates(tid, '');
+        if (!candidates.length) {
+            Actions.closeMentionPicker();
+            Render();
+            return;
+        }
+        const sel = window.getSelection();
+        let x = 12, y = 12;
+        if (sel && sel.rangeCount) {
+            const range = sel.getRangeAt(0);
+            const caretRect = range.getBoundingClientRect();
+            const editorRect = editor.getBoundingClientRect();
+            const localX = caretRect.left - editorRect.left;
+            const localY = caretRect.top - editorRect.top;
+            x = Math.max(8, Math.min(localX, Math.max(8, editorRect.width - 220)));
+            y = Math.max(12, localY);
+        }
+        state.ui.mentionPicker = {
+            visible: true,
+            taskId: tid,
+            query: '',
+            selectedIndex: -1,
+            candidateUids: candidates.map(c => c.uid),
+            x,
+            y
+        };
+        Render();
+    },
+    getTodoMentionCandidates: (tid, query = '') => {
+        const t = state.tasks.find(x => x.id === tid);
+        if (!t) return [];
+        const p = state.projects.find(x => x.id === t.projectId);
+        const memberIds = (p?.memberIds || p?.members || []);
+        const q = (query || '').trim().toLowerCase();
+        return state.users
+            .filter(u => memberIds.includes(u.uid))
+            .filter(u => !q || (u.name || '').toLowerCase().includes(q))
+            .slice(0, 6);
+    },
+    getActiveMentionQuery: (editor) => {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return null;
+        const range = sel.getRangeAt(0);
+        if (!range.collapsed) return null;
+        const container = range.startContainer;
+        if (!container) return null;
+
+        // Caret may sit on element nodes right after typing '@'; normalize to a text context.
+        let text = '';
+        let offset = 0;
+        if (container.nodeType === Node.TEXT_NODE) {
+            text = container.textContent || '';
+            offset = range.startOffset;
+        } else if (container.nodeType === Node.ELEMENT_NODE) {
+            const el = container;
+            const idx = range.startOffset;
+            const prev = idx > 0 ? el.childNodes[idx - 1] : null;
+            if (prev && prev.nodeType === Node.TEXT_NODE) {
+                text = prev.textContent || '';
+                offset = text.length;
+            } else {
+                return null;
+            }
+        } else {
+            return null;
+        }
+
+        const before = text.slice(0, offset);
+        const atIndex = before.lastIndexOf('@');
+        if (atIndex < 0) return null;
+        if (atIndex > 0 && !/\s/.test(before[atIndex - 1])) return null;
+        const query = before.slice(atIndex + 1);
+        if (/\s/.test(query)) return null;
+        return { query };
+    },
+    refreshMentionPicker: (tid) => {
+        const editor = document.getElementById('todo-editor');
+        if (!editor) return;
+        const active = Actions.getActiveMentionQuery(editor);
+        if (!active) {
+            Actions.closeMentionPicker();
+            Render();
+            return;
+        }
+        const candidates = Actions.getTodoMentionCandidates(tid, active.query);
+        const sel = window.getSelection();
+        let x = 12, y = 12;
+        if (sel && sel.rangeCount) {
+            const range = sel.getRangeAt(0);
+            const caretRect = range.getBoundingClientRect();
+            const editorRect = editor.getBoundingClientRect();
+            const localX = caretRect.left - editorRect.left;
+            const localY = caretRect.top - editorRect.top;
+            x = Math.max(8, Math.min(localX, Math.max(8, editorRect.width - 220)));
+            y = Math.max(12, localY);
+        }
+        state.ui.mentionPicker = {
+            visible: candidates.length > 0,
+            taskId: tid,
+            query: active.query,
+            selectedIndex: -1,
+            candidateUids: candidates.map(c => c.uid),
+            x,
+            y
+        };
+        Render();
+    },
+    pickMentionFromPicker: (event, tid, uid) => {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        Actions.pickMention(tid, uid);
+    },
+    handleTodoEditorKeyUp: (event, tid) => {
+        const k = event.key;
+        if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'Escape') return;
+        const picker = state.ui.mentionPicker;
+        // Enter was already consumed by mention picker on keydown; avoid double convert.
+        if (k === 'Enter' && picker?.visible && picker.taskId === tid) return;
+        if (k === 'Enter' && state.ui.skipMentionNormalizeOnce) {
+            state.ui.skipMentionNormalizeOnce = false;
+            return;
+        }
+        if (k === ' ' || k === 'Enter') {
+            const editor = document.getElementById('todo-editor');
+            if (editor) {
+                // Convert typed @name to mention chip right after delimiter is committed.
+                setTimeout(() => {
+                    Actions.normalizeMentionsInEditor(tid, editor);
+                    Actions.updateEditorDraft(tid, editor.innerHTML);
+                    Actions.closeMentionPicker();
+                    Render();
+                }, 0);
+            }
+            return;
+        }
+        Actions.refreshMentionPicker(tid);
+    },
+    handleTodoEditorKeyDown: (event, tid) => {
+        const picker = state.ui.mentionPicker;
+        if (!picker?.visible || picker.taskId !== tid || !picker.candidateUids.length) return;
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (picker.selectedIndex < 0) picker.selectedIndex = 0;
+            else picker.selectedIndex = (picker.selectedIndex + 1) % picker.candidateUids.length;
+            Render();
+            return;
+        }
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (picker.selectedIndex < 0) picker.selectedIndex = picker.candidateUids.length - 1;
+            else picker.selectedIndex = (picker.selectedIndex - 1 + picker.candidateUids.length) % picker.candidateUids.length;
+            Render();
+            return;
+        }
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (picker.selectedIndex < 0) return;
+            const uid = picker.candidateUids[picker.selectedIndex];
+            if (uid) Actions.pickMention(tid, uid);
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            Actions.closeMentionPicker();
+            Render();
+        }
+    },
+    handleTodoMentionBackspace: (event, tid) => {
+        if (!(event.key === 'Backspace' || event.key === 'Delete')) return;
+        const editor = document.getElementById('todo-editor');
+        const sel = window.getSelection();
+        if (!editor || !sel || !sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        if (!range.collapsed) return;
+
+        const getSiblingMention = (node, direction) => {
+            if (!node) return null;
+            let cur = node;
+            while (cur && cur !== editor) {
+                const sib = direction === 'prev' ? cur.previousSibling : cur.nextSibling;
+                if (!sib) {
+                    cur = cur.parentNode;
+                    continue;
+                }
+                if (sib.nodeType === Node.TEXT_NODE && !(sib.textContent || '').trim()) {
+                    cur = sib;
+                    continue;
+                }
+                if (sib.nodeType === Node.ELEMENT_NODE && sib.classList?.contains('todo-mention')) return sib;
+                return null;
+            }
+            return null;
+        };
+
+        let targetMention = null;
+        if (event.key === 'Backspace') {
+            if (range.startContainer.nodeType === Node.TEXT_NODE && range.startOffset > 0) return;
+            targetMention = getSiblingMention(range.startContainer, 'prev');
+        } else if (event.key === 'Delete') {
+            if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                const text = range.startContainer.textContent || '';
+                if (range.startOffset < text.length) return;
+            }
+            targetMention = getSiblingMention(range.startContainer, 'next');
+        }
+
+        if (!targetMention) return;
+        event.preventDefault();
+        const raw = targetMention.textContent || '';
+        const textNode = document.createTextNode(raw);
+        targetMention.parentNode.replaceChild(textNode, targetMention);
+
+        const next = document.createRange();
+        if (event.key === 'Backspace') {
+            next.setStart(textNode, raw.length);
+        } else {
+            next.setStart(textNode, 0);
+        }
+        next.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(next);
+        Actions.updateEditorDraft(tid, editor.innerHTML);
+    },
+    pickMention: (tid, uid) => {
+        const user = state.users.find(u => u.uid === uid);
+        const editor = document.getElementById('todo-editor');
+        if (!user || !editor) return;
+
+        const sel = window.getSelection();
+        if (!sel) return;
+        let range;
+        const selectionInsideEditor = sel.rangeCount && editor.contains(sel.anchorNode);
+        if (selectionInsideEditor) {
+            range = sel.getRangeAt(0).cloneRange();
+        } else {
+            range = document.createRange();
+            range.selectNodeContents(editor);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+
+        // Remove current "@query" before caret when possible.
+        const resolveTextContext = () => {
+            const c = range.startContainer;
+            const o = range.startOffset;
+            if (c && c.nodeType === Node.TEXT_NODE) return { node: c, offset: o };
+            if (c && c.nodeType === Node.ELEMENT_NODE && o > 0) {
+                const prev = c.childNodes[o - 1];
+                if (prev && prev.nodeType === Node.TEXT_NODE) {
+                    return { node: prev, offset: (prev.textContent || '').length };
+                }
+            }
+            return null;
+        };
+        const ctx = resolveTextContext();
+        if (ctx) {
+            const text = ctx.node.textContent || '';
+            const before = text.slice(0, ctx.offset);
+            const after = text.slice(ctx.offset);
+            const atIndex = before.lastIndexOf('@');
+            const valid = atIndex >= 0 && (atIndex === 0 || /\s/.test(before[atIndex - 1]));
+            if (valid) {
+                ctx.node.textContent = before.slice(0, atIndex) + after;
+                range = document.createRange();
+                range.setStart(ctx.node, Math.min(atIndex, (ctx.node.textContent || '').length));
+                range.collapse(true);
+            }
+        }
+
+        const span = Actions.buildMentionSpan(user);
+
+        const space = document.createTextNode(' ');
+        range.insertNode(space);
+        range.insertNode(span);
+        const nextRange = document.createRange();
+        nextRange.setStartAfter(space);
+        nextRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(nextRange);
+
+        state.ui.skipMentionNormalizeOnce = true;
+        Actions.closeMentionPicker();
+        Actions.normalizeMentionsInEditor(tid, editor);
+        Actions.updateEditorDraft(tid, editor.innerHTML);
+        Render();
+    },
+    normalizeMentionsInEditor: (tid, editor) => {
+        if (!editor) return;
+        const t = state.tasks.find(x => x.id === tid);
+        if (!t) return;
+        const p = state.projects.find(x => x.id === t.projectId);
+        const members = state.users.filter(u => (p?.memberIds || p?.members || []).includes(u.uid));
+        if (!members.length) return;
+
+        const byName = new Map(members.map(m => [(m.name || '').toLowerCase(), m]));
+        const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+        const targets = [];
+        let node;
+        while ((node = walker.nextNode())) {
+            if (!node.parentElement) continue;
+            if (node.parentElement.closest('.todo-mention')) continue;
+            const text = node.textContent || '';
+            if (!text.includes('@')) continue;
+            targets.push(node);
+        }
+
+        const mentionRe = /(^|\s)@([^\s@]+)/g;
+        targets.forEach(textNode => {
+            const text = textNode.textContent || '';
+            let m;
+            let last = 0;
+            const frag = document.createDocumentFragment();
+            let replaced = false;
+            while ((m = mentionRe.exec(text)) !== null) {
+                const prefix = m[1] || '';
+                const rawName = m[2] || '';
+                const user = byName.get(rawName.toLowerCase());
+                if (!user) continue;
+                const start = m.index;
+                const atPos = start + prefix.length;
+                if (atPos > last) {
+                    frag.appendChild(document.createTextNode(text.slice(last, atPos)));
+                }
+                const span = Actions.buildMentionSpan(user);
+                frag.appendChild(span);
+                last = atPos + 1 + rawName.length;
+                replaced = true;
+            }
+            if (!replaced) return;
+            if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+            textNode.parentNode.replaceChild(frag, textNode);
+        });
+    },
     execCmd: (cmd, val = null) => {
         document.execCommand(cmd, false, val);
         const editor = document.getElementById('todo-editor');
         if (editor) editor.focus();
+    },
+    removeEditorImage: (imageId) => {
+        const list = state.ui.editorImages || [];
+        const removed = list.find(x => (typeof x === 'object' && x.id === imageId));
+        if (removed?.previewUrl && String(removed.previewUrl).startsWith('blob:')) {
+            URL.revokeObjectURL(removed.previewUrl);
+        }
+        state.ui.editorImages = list.filter(x => (typeof x === 'object' ? x.id !== imageId : x !== imageId));
+        Render();
+    },
+    clearEditorImages: () => {
+        (state.ui.editorImages || []).forEach(x => {
+            if (typeof x === 'object' && x.previewUrl && String(x.previewUrl).startsWith('blob:')) {
+                URL.revokeObjectURL(x.previewUrl);
+            }
+        });
+        state.ui.editorImages = [];
+    },
+    toEditorImageObject: (x, idx = 0) => {
+        if (typeof x === 'object' && x) return x;
+        const url = String(x || '');
+        return {
+            id: `remote:${idx}:${Date.now()}`,
+            name: `图片${idx + 1}`,
+            url,
+            previewUrl: url,
+            file: null
+        };
+    },
+    compressTodoImage: async (file) => {
+        if (!file || !(file.type || '').startsWith('image/')) return file;
+        const img = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const el = new Image();
+                el.onload = () => resolve(el);
+                el.onerror = () => reject(new Error('图片解码失败'));
+                el.src = reader.result;
+            };
+            reader.onerror = () => reject(new Error('读取图片失败'));
+            reader.readAsDataURL(file);
+        });
+
+        const maxW = 1600;
+        const maxH = 1600;
+        const ratio = Math.min(1, maxW / img.width, maxH / img.height);
+        const targetW = Math.max(1, Math.round(img.width * ratio));
+        const targetH = Math.max(1, Math.round(img.height * ratio));
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+
+        const mime = 'image/jpeg';
+        const quality = 0.82;
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, quality));
+        if (!blob) return file;
+        return new File([blob], (file.name || 'image').replace(/\.\w+$/, '') + '.jpg', { type: mime });
+    },
+    uploadTodoImage: async (tid, file) => {
+        const { storage, ref, uploadBytes, getDownloadURL } = window.fb;
+        if (!state.currentUser?.uid) throw new Error('当前用户未登录');
+        const compressedFile = await Actions.compressTodoImage(file);
+        const mime = (compressedFile?.type || 'image/jpeg').toLowerCase();
+        const extRaw = (mime.split('/')[1] || 'png').split('+')[0];
+        const ext = extRaw.replace(/[^a-z0-9]/g, '') || 'png';
+        const key = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const fileRef = ref(storage, `todo-images/${state.currentUser.uid}/${tid}/${key}.${ext}`);
+        await uploadBytes(fileRef, compressedFile, { contentType: mime });
+        return getDownloadURL(fileRef);
+    },
+    extractStoragePathFromUrl: (url) => {
+        try {
+            const u = new URL(url);
+            if (!u.pathname.includes('/o/')) return null;
+            const encoded = u.pathname.split('/o/')[1] || '';
+            const decoded = decodeURIComponent(encoded);
+            return decoded || null;
+        } catch (e) {
+            return null;
+        }
+    },
+    deleteStorageTargets: async (targets = []) => {
+        const { storage, ref, deleteObject } = window.fb;
+        const uniq = Array.from(new Set((targets || []).filter(Boolean)));
+        await Promise.all(uniq.map(async (target) => {
+            const maybePath = String(target || '');
+            const path = /^https?:\/\//.test(maybePath)
+                ? (Actions.extractStoragePathFromUrl(maybePath) || maybePath)
+                : maybePath;
+            try {
+                await deleteObject(ref(storage, path));
+            } catch (e) {
+                console.warn('删除 Storage 文件失败（忽略）:', path, e);
+            }
+        }));
+    },
+    collectTodoImageTargets: (todos = []) => {
+        const out = [];
+        (todos || []).forEach(td => {
+            (td.images || []).forEach(img => {
+                if (!img) return;
+                if (typeof img === 'string') out.push(img);
+                else if (img.url) out.push(img.url);
+                else if (img.previewUrl && /^https?:\/\//.test(img.previewUrl)) out.push(img.previewUrl);
+            });
+        });
+        return out;
+    },
+    resolveEditorImageUrls: async (tid) => {
+        const images = (state.ui.editorImages || []).map((x, idx) => Actions.toEditorImageObject(x, idx));
+        const out = [];
+        for (const img of images) {
+            if (img.file) {
+                const url = await Actions.uploadTodoImage(tid, img.file);
+                out.push(url);
+            } else if (img.url) {
+                out.push(img.url);
+            } else if (img.previewUrl && /^https?:\/\//.test(img.previewUrl)) {
+                out.push(img.previewUrl);
+            }
+        }
+        return out;
+    },
+    handleTodoImageFiles: async (fileLike, tid, editor) => {
+        const files = Array.from(fileLike || []).filter(f => f && (f.type || '').startsWith('image/'));
+        if (!files.length || !editor) return false;
+        const existingCount = (state.ui.editorImages || []).length;
+        const MAX_TODO_IMAGES = 6;
+        if (existingCount >= MAX_TODO_IMAGES) {
+            alert('一条待办最多上传 6 张图片。');
+            return false;
+        }
+        const slots = MAX_TODO_IMAGES - existingCount;
+        const acceptedFiles = files.slice(0, slots);
+        if (files.length > slots) {
+            alert('一条待办最多上传 6 张图片。');
+        }
+
+        for (const file of acceptedFiles) {
+            const id = `local:${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            const previewUrl = URL.createObjectURL(file);
+            state.ui.editorImages = [
+                ...(state.ui.editorImages || []),
+                { id, name: file.name || '图片', previewUrl, file, url: null }
+            ];
+        }
+        Render();
+        return true;
+    },
+    handleTodoDragOver: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    },
+    handleTodoDrop: async (event, tid) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const editor = document.getElementById('todo-editor');
+        if (!editor) return;
+        await Actions.handleTodoImageFiles(event.dataTransfer?.files, tid, editor);
+    },
+    handleTodoPaste: async (event, tid) => {
+        const items = Array.from(event.clipboardData?.items || []);
+        const files = items
+            .filter(it => (it.type || '').startsWith('image/'))
+            .map(it => it.getAsFile())
+            .filter(Boolean);
+        if (!files.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const editor = document.getElementById('todo-editor');
+        if (!editor) return;
+        await Actions.handleTodoImageFiles(files, tid, editor);
     },
     updateEditorDraft: (tid, html) => {
         state.ui.editorTaskId = tid;
@@ -1196,24 +1734,48 @@ const Actions = {
         state.ui.editingTodoId = todoId;
         state.ui.editorTaskId = tid;
         state.ui.editorContent = todo.text;
+        state.ui.editorImages = Array.isArray(todo.images) ? todo.images.map((img, idx) => Actions.toEditorImageObject(img, idx)) : [];
+        Actions.closeMentionPicker();
         Render();
     },
     cancelEditingTodo: () => {
         state.ui.editingTodoId = null;
         state.ui.editorTaskId = null;
         state.ui.editorContent = '';
+        Actions.clearEditorImages();
+        Actions.closeMentionPicker();
         Render();
     },
     saveTodo: async (tid) => {
         const { db, doc, updateDoc } = window.fb;
         const editor = document.getElementById('todo-editor');
         if (!editor || !editor.innerHTML.trim()) return;
+        Actions.normalizeMentionsInEditor(tid, editor);
         const t = state.tasks.find(t => t.id === tid);
         const editedTodoId = state.ui.editingTodoId;
         const todo = t.todos.find(td => td.id === editedTodoId);
-        if (todo) { todo.text = editor.innerHTML; }
+        const hasPendingUpload = (state.ui.editorImages || []).some(img => typeof img === 'object' && img?.file);
+        let nextImages = [];
+        try {
+            if (hasPendingUpload) {
+                state.ui.todoSubmitUploading = true;
+                Render();
+            }
+            nextImages = await Actions.resolveEditorImageUrls(tid);
+        } catch (err) {
+            alert('图片上传失败，请稍后重试。');
+            console.warn('保存待办时上传图片失败:', err);
+            return;
+        } finally {
+            if (hasPendingUpload) {
+                state.ui.todoSubmitUploading = false;
+                Render();
+            }
+        }
+        if (todo) { todo.text = editor.innerHTML; todo.images = nextImages; }
         if (todo && window.queueTodoAnimation) window.queueTodoAnimation(tid, todo.id);
-        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = '';
+        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; Actions.clearEditorImages();
+        Actions.closeMentionPicker();
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (err) {
@@ -1225,13 +1787,39 @@ const Actions = {
         const { db, doc, updateDoc } = window.fb;
         const editor = document.getElementById('todo-editor');
         if (!editor || !editor.innerHTML.trim()) return;
+        Actions.normalizeMentionsInEditor(tid, editor);
         const html = editor.innerHTML;
         const t = state.tasks.find(t => t.id === tid);
+        const hasPendingUpload = (state.ui.editorImages || []).some(img => typeof img === 'object' && img?.file);
+        let nextImages = [];
+        try {
+            if (hasPendingUpload) {
+                state.ui.todoSubmitUploading = true;
+                Render();
+            }
+            nextImages = await Actions.resolveEditorImageUrls(tid);
+        } catch (err) {
+            alert('图片上传失败，请稍后重试。');
+            console.warn('重新添加待办时上传图片失败:', err);
+            return;
+        } finally {
+            if (hasPendingUpload) {
+                state.ui.todoSubmitUploading = false;
+                Render();
+            }
+        }
         t.todos = t.todos.filter(td => td.id !== state.ui.editingTodoId);
         const newTodoId = `td${Date.now()}`;
-        t.todos.push({ id: newTodoId, text: html, completed: false, createdAt: Date.now() });
+        t.todos.push({
+            id: newTodoId,
+            text: html,
+            images: nextImages,
+            completed: false,
+            createdAt: Date.now()
+        });
         if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
-        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = '';
+        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; Actions.clearEditorImages();
+        Actions.closeMentionPicker();
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (err) {
@@ -1243,12 +1831,38 @@ const Actions = {
         const { db, doc, updateDoc } = window.fb;
         const editor = document.getElementById('todo-editor');
         if (!editor || !editor.innerHTML.trim()) return;
+        Actions.normalizeMentionsInEditor(tid, editor);
         const html = editor.innerHTML;
         const t = state.tasks.find(t => t.id === tid);
+        const hasPendingUpload = (state.ui.editorImages || []).some(img => typeof img === 'object' && img?.file);
+        let nextImages = [];
+        try {
+            if (hasPendingUpload) {
+                state.ui.todoSubmitUploading = true;
+                Render();
+            }
+            nextImages = await Actions.resolveEditorImageUrls(tid);
+        } catch (err) {
+            alert('图片上传失败，请稍后重试。');
+            console.warn('新增待办时上传图片失败:', err);
+            return;
+        } finally {
+            if (hasPendingUpload) {
+                state.ui.todoSubmitUploading = false;
+                Render();
+            }
+        }
         const newTodoId = `td${Date.now()}`;
-        t.todos.push({ id: newTodoId, text: html, completed: false, createdAt: Date.now() });
+        t.todos.push({
+            id: newTodoId,
+            text: html,
+            images: nextImages,
+            completed: false,
+            createdAt: Date.now()
+        });
         if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
-        editor.innerHTML = ''; state.ui.editorTaskId = null; state.ui.editorContent = '';
+        editor.innerHTML = ''; state.ui.editorTaskId = null; state.ui.editorContent = ''; Actions.clearEditorImages();
+        Actions.closeMentionPicker();
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (err) {
@@ -1259,8 +1873,14 @@ const Actions = {
     deleteTodo: async (tid, tdid) => {
         const { db, doc, updateDoc } = window.fb;
         const t = state.tasks.find(t => t.id === tid);
+        if (!t) return;
+        const targetTodo = (t?.todos || []).find(td => td.id === tdid);
+        const todoImageTargets = Actions.collectTodoImageTargets(targetTodo ? [targetTodo] : []);
         t.todos = t.todos.filter(td => td.id !== tdid);
         if (state.ui.editingTodoId === tdid) { state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; }
+        if (todoImageTargets.length) {
+            await Actions.deleteStorageTargets(todoImageTargets);
+        }
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (err) {

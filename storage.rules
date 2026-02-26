@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Task files (existing flow): tasks/{taskId}/v{n}/filename
+    match /tasks/{taskId}/{version}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+                            && request.resource.size < 20 * 1024 * 1024;
+      allow delete: if isSignedIn();
+    }
+
+    // Todo image uploads: owner can write to their own folder.
+    match /todo-images/{uid}/{taskId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+                            && request.auth.uid == uid
+                            && request.resource.size < 5 * 1024 * 1024
+                            && request.resource.contentType.matches('image/.*');
+      allow delete: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Deny everything else by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

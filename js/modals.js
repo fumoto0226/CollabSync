@@ -1,4 +1,17 @@
 function RenderModals() {
+    // Image Preview Modal (for todo inline images)
+    if (state.ui.imagePreviewUrl) {
+        const imageUrl = state.ui.imagePreviewUrl;
+        return `
+            <div class="fixed inset-0 z-[95] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 fade-in" onclick="if(event.target===this) window.dispatch('closeImagePreview')">
+                <div class="relative max-w-[90vw] max-h-[90vh]">
+                    <button onclick="window.dispatch('closeImagePreview')" class="absolute -top-10 right-0 text-white/90 hover:text-white">${Icon('x', '', 26)}</button>
+                    <img src="${imageUrl}" class="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl border border-white/20 bg-black/20" />
+                </div>
+            </div>
+        `;
+    }
+
     // Confirmation Modal (for delete project/task)
     if (state.confirmModal?.visible) {
         return `

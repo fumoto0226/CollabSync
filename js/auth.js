@@ -89,7 +89,9 @@ function startDataSync(uid) {
             const prevTodoById = new Map((prev.todos || []).map(td => [td.id, td]));
             (t.todos || []).forEach(td => {
                 const prevTd = prevTodoById.get(td.id);
-                if (!prevTd || prevTd.text !== td.text) {
+                const prevImgs = JSON.stringify(prevTd?.images || []);
+                const currImgs = JSON.stringify(td.images || []);
+                if (!prevTd || prevTd.text !== td.text || prevImgs !== currImgs) {
                     if (window.queueTodoAnimation) window.queueTodoAnimation(t.id, td.id);
                 }
             });
