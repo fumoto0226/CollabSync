@@ -98,14 +98,15 @@ const Actions = {
         const { db, doc, updateDoc } = window.fb;
         try {
             const now = Date.now();
-            await updateDoc(doc(db, 'projects', pid), {
-                completed: true,
-                completedAt: now
-            });
             const p = state.projects.find(p => p.id === pid);
+            const nextCompleted = !(p?.completed);
+            await updateDoc(doc(db, 'projects', pid), {
+                completed: nextCompleted,
+                completedAt: nextCompleted ? now : null
+            });
             if (p) {
-                p.completed = true;
-                p.completedAt = now;
+                p.completed = nextCompleted;
+                p.completedAt = nextCompleted ? now : null;
             }
         } catch (err) {
             console.error('标记项目完成失败:', err);
@@ -1391,9 +1392,14 @@ const Actions = {
         if (event?.isComposing || state.ui.mentionComposing) return;
         const k = event.key;
         const picker = state.ui.mentionPicker;
+        if (k === 'Shift' || k === 'Control' || k === 'Alt' || k === 'Meta') return;
         if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'Escape') return;
         if (k === '@') {
             // 手动输入 @ 时，等同于点击一次工具栏 @ 按钮。
+            if (state.ui.mentionPickerTimer) {
+                clearTimeout(state.ui.mentionPickerTimer);
+                state.ui.mentionPickerTimer = null;
+            }
             Actions.insertMentionTrigger(tid);
             return;
         }
@@ -1404,6 +1410,10 @@ const Actions = {
             return;
         }
         if (k === ' ' || k === 'Enter') {
+            if (state.ui.mentionPickerTimer) {
+                clearTimeout(state.ui.mentionPickerTimer);
+                state.ui.mentionPickerTimer = null;
+            }
             const editor = document.getElementById('todo-editor');
             if (editor) {
                 // Convert typed @name to mention chip right after delimiter is committed.

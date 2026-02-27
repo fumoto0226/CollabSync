@@ -2,6 +2,20 @@
 function Render() {
     saveScroll(); // Save scroll position before update
 
+    // Capture current caret position in todo editor before re-render.
+    const prevEditor = document.getElementById('todo-editor');
+    let prevEditorCaret = null;
+    if (prevEditor) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && prevEditor.contains(sel.anchorNode)) {
+            const range = sel.getRangeAt(0).cloneRange();
+            const pre = range.cloneRange();
+            pre.selectNodeContents(prevEditor);
+            pre.setEnd(range.startContainer, range.startOffset);
+            prevEditorCaret = pre.toString().length;
+        }
+    }
+
     const app = document.getElementById('app');
     const portal = document.getElementById('modal-portal');
     if (!app) return;
@@ -48,11 +62,32 @@ function Render() {
     if (editor && state.ui.editorTaskId === currentTaskId && state.ui.editorContent) {
         if (editor.innerHTML !== state.ui.editorContent) {
             editor.innerHTML = state.ui.editorContent;
-            // Set cursor to end
-            const range = document.createRange();
-            range.selectNodeContents(editor);
-            range.collapse(false);
+        }
+        // Restore caret to previous position instead of forcing to end.
+        if (prevEditorCaret !== null) {
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+            let remaining = prevEditorCaret;
+            let targetNode = null;
+            let targetOffset = 0;
+            let node;
+            while ((node = walker.nextNode())) {
+                const len = (node.textContent || '').length;
+                if (remaining <= len) {
+                    targetNode = node;
+                    targetOffset = Math.max(0, Math.min(remaining, len));
+                    break;
+                }
+                remaining -= len;
+            }
             const sel = window.getSelection();
+            const range = document.createRange();
+            if (targetNode) {
+                range.setStart(targetNode, targetOffset);
+            } else {
+                range.selectNodeContents(editor);
+                range.collapse(false);
+            }
+            range.collapse(true);
             sel.removeAllRanges();
             sel.addRange(range);
         }

@@ -14,6 +14,10 @@ function RenderModals() {
 
     // Confirmation Modal (for delete project/task)
     if (state.confirmModal?.visible) {
+        const confirmType = state.confirmModal.type;
+        const confirmLabel = confirmType === 'leave_project'
+            ? '确认退出'
+            : (confirmType === 'discard_changes' ? '确认放弃' : '确认删除');
         return `
             <div class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 fade-in" onclick="if(event.target===this) window.dispatch('closeConfirmModal')">
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -25,7 +29,7 @@ function RenderModals() {
                     </div>
                     <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t">
                         <button onclick="window.dispatch('closeConfirmModal')" class="px-4 py-2 rounded-lg text-gray-600 font-medium hover:bg-gray-200 transition-colors">取消</button>
-                        <button onclick="window.dispatch('handleConfirm')" class="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-md transition-colors">确认删除</button>
+                        <button onclick="window.dispatch('handleConfirm')" class="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-md transition-colors">${confirmLabel}</button>
                     </div>
                 </div>
             </div>
@@ -37,6 +41,8 @@ function RenderModals() {
         const pid = state.contextMenu.projectId;
         const p = state.projects.find(proj => proj.id === pid);
         const isPinned = (state.currentUser?.pinnedProjects || []).includes(pid);
+        const isOwner = p?.ownerId === state.currentUser?.uid;
+        const isCompleted = !!p?.completed;
 
         const menuW = 180;
         const menuH = isPinned ? 128 : 128; // 3 items
@@ -51,10 +57,10 @@ function RenderModals() {
                         ${Icon(isPinned ? 'pin-off' : 'pin', 'mr-2', 16)} ${isPinned ? '取消置顶' : '置顶项目'}
                     </button>
                     <button onclick="window.dispatch('markProjectCompleted', '${pid}')" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center text-gray-700 border-t border-gray-100">
-                        ${Icon('check-circle-2', 'mr-2', 16)} 项目完成
+                        ${Icon(isCompleted ? 'rotate-ccw' : 'check-circle-2', 'mr-2', 16)} ${isCompleted ? '取消完成' : '项目完成'}
                     </button>
-                    <button onclick="window.dispatch('openConfirmModal', 'delete_project', '${pid}', '删除项目', '确定要删除这个项目吗？项目下所有任务也会被删除，此操作不可撤销。'); window.dispatch('closeContextMenu')" class="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 flex items-center text-red-600 border-t border-gray-100">
-                        ${Icon('trash-2', 'mr-2', 16)} 删除项目
+                    <button onclick="window.dispatch('openConfirmModal', '${isOwner ? 'delete_project' : 'leave_project'}', '${pid}', '${isOwner ? '删除项目' : '退出项目'}', '${isOwner ? '确定要删除这个项目吗？项目下所有任务也会被删除，此操作不可撤销。' : '确定要退出这个项目吗？你将不再是该项目成员。'}'); window.dispatch('closeContextMenu')" class="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 flex items-center text-red-600 border-t border-gray-100">
+                        ${Icon(isOwner ? 'trash-2' : 'log-out', 'mr-2', 16)} ${isOwner ? '删除项目' : '退出项目'}
                     </button>
                 </div>
             </div>
@@ -655,15 +661,16 @@ function RenderModals() {
             const isUpload = act.type === 'upload';
             const isProgress = act.type === 'progress';
             const isAutoDiscard = act.type === 'auto_discard';
+            const isMeAct = act.userId === state.currentUser?.uid;
 
             let icon, iconBg, title;
             if (isProgress) {
                 icon = Icon('check-circle-2', '', 20);
-                iconBg = 'bg-blue-100 text-blue-600';
+                iconBg = isMeAct ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-700';
                 title = `提交进度 v${act.version}`;
             } else if (isUpload) {
                 icon = Icon('check-circle-2', '', 20);
-                iconBg = 'bg-green-100 text-green-600';
+                iconBg = isMeAct ? 'bg-green-100 text-green-600' : 'bg-purple-100 text-purple-700';
                 title = `提交版本 v${act.version}`;
             } else if (isAutoDiscard) {
                 icon = Icon('clock', '', 20);

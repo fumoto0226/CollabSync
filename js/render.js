@@ -160,7 +160,10 @@ function RenderSidebar() {
                         ${isExpanded ? Icon('chevron-down', '', 14) : Icon('chevron-right', '', 14)}
                     </button>
                     ${Icon('hash', `mr-2 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`, 16)}
-                    <span class="truncate flex-1 text-sm font-medium">${p.name} <span class="text-xs opacity-50 font-normal">(${pTasks.filter(t => t.completed).length}/${pTasks.length})</span></span>
+                    <div class="flex items-center min-w-0 flex-1 text-sm font-medium">
+                        <span class="truncate min-w-0">${p.name}</span>
+                        <span class="text-xs opacity-50 font-normal shrink-0 ml-1">${p.completed ? '（已完成✅）' : `(${pTasks.filter(t => t.completed).length}/${pTasks.length})`}</span>
+                    </div>
                     
                     <div class="flex -space-x-1.5 ml-2 cursor-pointer hover:opacity-80" onclick="event.stopPropagation(); window.dispatch('openMemberModal', '${p.id}')">
                         ${displayMembers.map(m => {
@@ -450,7 +453,7 @@ function RenderMain() {
                         ${isOwner ? "删除项目" : "退出项目"}
                     </button>
                     <div class="flex items-center gap-3 mb-2">
-                        <h1 class="text-3xl font-bold text-gray-900"># ${p.name}</h1>
+                        <h1 class="text-3xl font-bold text-gray-900"># ${p.name}${p.completed ? ' <span class="text-base text-gray-500 font-semibold">（已完成✅）</span>' : ''}</h1>
                         <button onclick="window.dispatch('openEditProjectModal', '${p.id}')" class="px-2 py-1 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 flex items-center gap-1">
                             ${Icon('edit-3', '', 14)} 编辑项目
                         </button>
@@ -737,6 +740,7 @@ function RenderMain() {
         }).join('')}
                                     </div>
                                     <div class="flex items-center justify-end gap-2 shrink-0">
+                                        <span class="text-[11px] text-gray-400 select-none">Ctrl/⌘ + Enter</span>
                                         ${state.ui.todoSubmitUploading ? `
                                             <div class="todo-uploading-hint">
                                                 上传中<span class="uploading-dots"><i>.</i><i>.</i><i>.</i></span>
