@@ -275,12 +275,10 @@ function RenderModals() {
                         </div>
                         `}
 
-                        ${!isTextTask ? `
                         <button onclick="window.dispatch('openConfirmModal', 'discard_changes', '${t.id}', '放弃修改', '确定要放弃所做的修改并解锁任务吗？这不会删除之前已上传的版本，只会放弃当前编辑周期内的修改。')" 
                             class="w-full flex items-center justify-center px-4 py-3 bg-white border-2 border-red-100 text-red-500 rounded-xl text-sm font-bold hover:bg-red-50 hover:border-red-200 transition-all active:scale-95">
                             ${Icon('x-circle', 'mr-2', 18)} 放弃修改 (不保存)
                         </button>
-                        ` : ''}
                         <button onclick="window.dispatch('closeActionModal')" class="w-full py-2 text-xs text-gray-400 hover:text-gray-600">取消</button>
                     </div>
                 </div>

@@ -604,31 +604,26 @@ function RenderMain() {
                         <!-- Text Task: Compact Header -->
                         <div class="p-4 rounded-2xl border-2 border-dashed transition-all bg-white shadow-sm"
                              style="border-color: ${t.isLocked ? statusColor : '#cbd5e1'}">
-                            <div class="grid grid-cols-3 items-center gap-2 min-h-[52px]">
-                                <div></div>
-                                <div class="flex items-center justify-center">
-                                    ${!t.isLocked ? `
-                                        <button onclick="window.dispatch('startTask', '${t.id}')" 
-                                            class="flex items-center px-5 py-2.5 rounded-lg font-medium shadow-sm transition-transform active:scale-95 ${t.completed ? 'bg-gray-300 text-gray-600 cursor-not-allowed hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}" ${t.completed ? 'disabled' : ''}>
-                                            ${Icon('play', 'mr-2', 18)} ${t.completed ? '任务已完成' : '开始占用'}
-                                        </button>
-                                    ` : isMe ? `
-                                        <button onclick="window.dispatch('openActionModal', '${t.id}')" 
-                                            class="flex items-center px-5 py-2.5 rounded-lg font-medium shadow-sm bg-green-600 text-white hover:bg-green-700 transition-transform active:scale-95">
-                                            ${Icon('square', 'mr-2', 16)} 结束占用
-                                        </button>
-                                    ` : `
-                                        <div class="text-sm text-gray-500 font-medium">
-                                            ${locker ? `${locker.name} 正在占用...` : '进行中'}
-                                        </div>
-                                    `}
-                                </div>
-                                <div class="flex items-center justify-end">
-                                    <button onclick="window.dispatch('openEditHistoryModal', '${t.id}')" 
-                                        class="flex items-center px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-900 shadow-sm transition-all text-sm font-medium">
-                                        ${Icon('file-clock', 'mr-2', 16)} 查看进度记录
+                            <div class="flex items-center justify-center gap-3 min-h-[52px]">
+                                <button onclick="window.dispatch('openEditHistoryModal', '${t.id}')" 
+                                    class="flex items-center px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-900 shadow-sm transition-all text-sm font-medium">
+                                    ${Icon('file-clock', 'mr-2', 16)} 查看进度记录
+                                </button>
+                                ${!t.isLocked ? `
+                                    <button onclick="window.dispatch('startTask', '${t.id}')" 
+                                        class="flex items-center px-5 py-2.5 rounded-lg font-medium shadow-sm transition-transform active:scale-95 ${t.completed ? 'bg-gray-300 text-gray-600 cursor-not-allowed hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}" ${t.completed ? 'disabled' : ''}>
+                                        ${Icon('play', 'mr-2', 18)} ${t.completed ? '任务已完成' : '开始占用'}
                                     </button>
-                                </div>
+                                ` : isMe ? `
+                                    <button onclick="window.dispatch('openActionModal', '${t.id}')" 
+                                        class="flex items-center px-5 py-2.5 rounded-lg font-medium shadow-sm bg-green-600 text-white hover:bg-green-700 transition-transform active:scale-95">
+                                        ${Icon('square', 'mr-2', 16)} 结束占用
+                                    </button>
+                                ` : `
+                                    <div class="text-sm text-gray-500 font-medium">
+                                        ${locker ? `${locker.name} 正在占用...` : '进行中'}
+                                    </div>
+                                `}
                             </div>
                         </div>
                         ` : `
