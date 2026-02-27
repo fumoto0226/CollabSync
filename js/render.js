@@ -678,7 +678,7 @@ function RenderMain() {
                             </div>
                             
                             <div class="mb-6 border rounded-xl overflow-visible shadow-sm focus-within:ring-2 ring-indigo-500 transition-all bg-white relative">
-                                <div class="flex items-center gap-1 p-2 border-b bg-gray-50 text-gray-600">
+                                <div class="flex items-center gap-1 p-2 border-b bg-gray-50 text-gray-600 rounded-t-xl">
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'bold')" class="p-1.5 hover:bg-gray-200 rounded text-xs font-bold w-8" title="加粗">B</button>
                                     <div class="w-px h-4 bg-gray-300 mx-1"></div>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'backColor', '#fef08a')" class="w-6 h-6 rounded bg-yellow-200 hover:ring-2 ring-yellow-400 border border-yellow-300 mx-1" title="黄色背景"></button>
@@ -695,6 +695,8 @@ function RenderMain() {
                                          onpaste="window.dispatch('handleTodoPaste', event, '${t.id}')"
                                          ondragover="window.dispatch('handleTodoDragOver', event)"
                                          ondrop="window.dispatch('handleTodoDrop', event, '${t.id}')"
+                                         oncompositionstart="window.dispatch('setMentionComposing', true)"
+                                         oncompositionend="window.dispatch('handleMentionCompositionEnd', event, '${t.id}')"
                                          onkeydown="window.dispatch('handleTodoMentionBackspace', event, '${t.id}'); window.dispatch('handleTodoEditorKeyDown', event, '${t.id}'); if(event.key==='Enter' && event.shiftKey) {}"
                                          onkeyup="window.dispatch('handleTodoEditorKeyUp', event, '${t.id}')"></div>
                                     ${mentionCandidates.length ? `
@@ -710,7 +712,7 @@ function RenderMain() {
                                         </div>
                                     ` : ''}
                                 </div>
-                                <div class="p-2 flex items-center justify-between gap-3 bg-white border-t border-gray-50">
+                                <div class="p-2 flex items-center justify-between gap-3 bg-white border-t border-gray-50 rounded-b-xl">
                                     <div class="flex flex-wrap gap-2 items-center flex-1 min-w-0">
                                         ${(state.ui.editorImages || []).map((img, idx) => {
             const previewUrl = (typeof img === 'object' && img) ? (img.previewUrl || img.url || '') : String(img || '');

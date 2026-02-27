@@ -1181,6 +1181,10 @@ const Actions = {
         Render();
     },
     closeMentionPicker: () => {
+        if (state.ui.mentionPickerTimer) {
+            clearTimeout(state.ui.mentionPickerTimer);
+            state.ui.mentionPickerTimer = null;
+        }
         state.ui.mentionPicker = {
             visible: false,
             taskId: null,
@@ -1190,6 +1194,19 @@ const Actions = {
             x: 12,
             y: 12
         };
+    },
+    setMentionComposing: (isComposing) => {
+        state.ui.mentionComposing = !!isComposing;
+        if (isComposing) {
+            Actions.closeMentionPicker();
+        }
+    },
+    handleMentionCompositionEnd: (event, tid) => {
+        state.ui.mentionComposing = false;
+        const editor = document.getElementById('todo-editor');
+        if (editor) {
+            Actions.updateEditorDraft(tid, editor.innerHTML);
+        }
     },
     getMentionToneClass: (uid) => {
         return (uid && state.currentUser?.uid && uid === state.currentUser.uid)
@@ -1284,12 +1301,16 @@ const Actions = {
         return { query };
     },
     refreshMentionPicker: (tid) => {
+        if (state.ui.mentionComposing) return;
         const editor = document.getElementById('todo-editor');
         if (!editor) return;
+        const prev = state.ui.mentionPicker || {};
         const active = Actions.getActiveMentionQuery(editor);
         if (!active) {
-            Actions.closeMentionPicker();
-            Render();
+            if (prev.visible) {
+                Actions.closeMentionPicker();
+                Render();
+            }
             return;
         }
         const candidates = Actions.getTodoMentionCandidates(tid, active.query);
@@ -1304,7 +1325,7 @@ const Actions = {
             x = Math.max(8, Math.min(localX, Math.max(8, editorRect.width - 220)));
             y = Math.max(12, localY);
         }
-        state.ui.mentionPicker = {
+        const next = {
             visible: candidates.length > 0,
             taskId: tid,
             query: active.query,
@@ -1313,7 +1334,25 @@ const Actions = {
             x,
             y
         };
+        const same =
+            prev.visible === next.visible &&
+            prev.taskId === next.taskId &&
+            prev.query === next.query &&
+            prev.selectedIndex === next.selectedIndex &&
+            prev.x === next.x &&
+            prev.y === next.y &&
+            JSON.stringify(prev.candidateUids || []) === JSON.stringify(next.candidateUids || []);
+        if (same) return;
+        state.ui.mentionPicker = next;
         Render();
+    },
+    scheduleMentionPickerRefresh: (tid) => {
+        if (state.ui.mentionComposing) return;
+        if (state.ui.mentionPickerTimer) clearTimeout(state.ui.mentionPickerTimer);
+        state.ui.mentionPickerTimer = setTimeout(() => {
+            state.ui.mentionPickerTimer = null;
+            Actions.refreshMentionPicker(tid);
+        }, 90);
     },
     pickMentionFromPicker: (event, tid, uid) => {
         if (event) {
@@ -1323,10 +1362,16 @@ const Actions = {
         Actions.pickMention(tid, uid);
     },
     handleTodoEditorKeyUp: (event, tid) => {
+        if (event?.isComposing || state.ui.mentionComposing) return;
         const k = event.key;
-        if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'Escape') return;
         const picker = state.ui.mentionPicker;
-        // Enter was already consumed by mention picker on keydown; avoid double convert.
+        if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'Escape') return;
+        if (k === '@') {
+            // 手动输入 @ 时，等同于点击一次工具栏 @ 按钮。
+            Actions.insertMentionTrigger(tid);
+            return;
+        }
+        // Enter was already consumed by mention picker on keydown (only when picker is open by @按钮).
         if (k === 'Enter' && picker?.visible && picker.taskId === tid) return;
         if (k === 'Enter' && state.ui.skipMentionNormalizeOnce) {
             state.ui.skipMentionNormalizeOnce = false;
@@ -1345,9 +1390,11 @@ const Actions = {
             }
             return;
         }
-        Actions.refreshMentionPicker(tid);
+        // 手动输入 @ 也支持联想，但通过节流刷新降低卡顿。
+        Actions.scheduleMentionPickerRefresh(tid);
     },
     handleTodoEditorKeyDown: (event, tid) => {
+        if (event?.isComposing || state.ui.mentionComposing) return;
         const picker = state.ui.mentionPicker;
         if (!picker?.visible || picker.taskId !== tid || !picker.candidateUids.length) return;
         if (event.key === 'ArrowDown') {
@@ -1471,7 +1518,7 @@ const Actions = {
             const before = text.slice(0, ctx.offset);
             const after = text.slice(ctx.offset);
             const atIndex = before.lastIndexOf('@');
-            const valid = atIndex >= 0 && (atIndex === 0 || /\s/.test(before[atIndex - 1]));
+            const valid = atIndex >= 0;
             if (valid) {
                 ctx.node.textContent = before.slice(0, atIndex) + after;
                 range = document.createRange();

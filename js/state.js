@@ -59,7 +59,9 @@ let state = {
             x: 12,
             y: 12
         },
+        mentionPickerTimer: null,
         skipMentionNormalizeOnce: false,
+        mentionComposing: false,
         imagePreviewUrl: null,
         todoAnimKeys: {},
         todoSubmitUploading: false,
