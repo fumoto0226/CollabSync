@@ -2,6 +2,8 @@
 
 function RenderSidebar() {
     const { projects, expandedProjects, activeView } = state;
+    const sidebarWidth = Math.max(240, Math.min(460, state.ui.sidebarWidth || 280));
+    const resizeHandle = `<div onmousedown="window.dispatch('startSidebarResize', event)" class="absolute top-0 -right-1 w-2 h-full cursor-col-resize z-20" title="拖拽调整宽度"></div>`;
 
     // 个人项目排序和置顶
     const uid = state.currentUser?.uid;
@@ -130,10 +132,10 @@ function RenderSidebar() {
                              style="cursor: ${t.completed ? 'pointer' : 'grab'}; transition: transform 0.2s ease;">
                             <span class="drag-handle mr-1 opacity-0 group-hover:opacity-100 transition-opacity ${isTaskActive ? 'text-white' : 'text-gray-400'}" style="cursor: grab; user-select: none;">⋮⋮</span>
                             ${Icon(isTextTask ? 'file-text' : 'folder', 'mr-2 flex-shrink-0 transition-colors', 14, activeFill, activeColor)}
-                            <span class="truncate flex-1 ${locker ? 'font-medium' : ''} ${t.completed ? 'line-through opacity-60' : ''}">
-                                ${t.name}
-                                <span class="text-[11px] ${isTaskActive ? 'text-white opacity-90' : 'text-gray-400'} ml-1">(${versionLabel})</span>
-                            </span>
+                            <div class="flex items-center min-w-0 flex-1 ${locker ? 'font-medium' : ''} ${t.completed ? 'line-through opacity-60' : ''}">
+                                <span class="truncate min-w-0">${t.name}</span>
+                                <span class="text-[11px] ${isTaskActive ? 'text-white opacity-90' : 'text-gray-400'} ml-1 shrink-0">(${versionLabel})</span>
+                            </div>
                             ${locker ? `<div class="flex items-center ${isTaskActive ? 'bg-white/20 border-white/30' : 'bg-white'} rounded-full pl-2 pr-1 py-0.5 ml-2 border" style="border-color:${isTaskActive ? 'rgba(255,255,255,0.3)' : (isMe ? '#a7f3d0' : '#e9d5ff')}" title="Locked by ${locker.name}"><span class="text-[10px] font-mono mr-1.5 tabular-nums timer-display" style="color:${activeColor}" data-ts="${t.lockedAt}">${durationStr}</span>${AvatarEmoji(locker.emoji, 'w-4 h-4 rounded-full border border-white', 'text-[12px]')}</div>` : ''}
                         </div>
                     `;
@@ -165,7 +167,7 @@ function RenderSidebar() {
                             const occupied = occupiedUids.has(m.uid);
                             const isMe = m.uid === uid;
                             const borderClass = occupied
-                                ? (isMe ? 'border-emerald-600' : 'border-purple-600')
+                                ? (isMe ? 'border-emerald-500' : 'border-purple-600')
                                 : 'border-white';
                             return AvatarEmoji(m.emoji, `w-5 h-5 rounded-full border ${borderClass} bg-gray-200`, 'text-[12px]');
                         }).join('')}
@@ -186,12 +188,14 @@ function RenderSidebar() {
     if (state.authStatus === 'loading') {
         // 加载期间占位，避免先闪出“未登录”界面
         return `
-            <div class="w-[280px] bg-[#f3f4f6] flex flex-col h-full flex-shrink-0 border-r border-gray-200" id="sidebar-scroll" data-scroll></div>
+            <div class="relative bg-[#f3f4f6] flex flex-col h-full flex-shrink-0 border-r border-gray-200" style="width:${sidebarWidth}px;" id="sidebar-scroll" data-scroll>
+                ${resizeHandle}
+            </div>
         `;
     }
     if (state.authStatus !== 'authenticated' || !u) {
         return `
-            <div class="w-[280px] bg-[#f3f4f6] flex flex-col h-full text-gray-700 flex-shrink-0 border-r border-gray-200" id="sidebar-scroll" data-scroll>
+            <div class="relative bg-[#f3f4f6] flex flex-col h-full text-gray-700 flex-shrink-0 border-r border-gray-200" style="width:${sidebarWidth}px;" id="sidebar-scroll" data-scroll>
                 <div class="h-14 flex items-center px-4 border-b border-gray-200 font-bold text-gray-800 bg-[#f3f4f6]">
                     <span class="truncate text-lg tracking-tight">CollabSync</span>
                 </div>
@@ -205,11 +209,12 @@ function RenderSidebar() {
                 <div class="border-t border-gray-200 bg-[#f3f4f6] p-4">
                     <div class="text-[10px] text-gray-400">未登录</div>
                 </div>
+                ${resizeHandle}
             </div>
         `;
     }
     return `
-        <div class="w-[280px] bg-[#f3f4f6] flex flex-col h-full text-gray-700 flex-shrink-0 border-r border-gray-200" id="sidebar-scroll" data-scroll>
+        <div class="relative bg-[#f3f4f6] flex flex-col h-full text-gray-700 flex-shrink-0 border-r border-gray-200" style="width:${sidebarWidth}px;" id="sidebar-scroll" data-scroll>
             <div class="h-14 flex items-center px-4 border-b border-gray-200 font-bold text-gray-800 bg-[#f3f4f6]">
                 <span class="truncate text-lg tracking-tight">CollabSync</span>
             </div>
@@ -238,6 +243,7 @@ function RenderSidebar() {
                     </button>
                 </div>
             </div>
+            ${resizeHandle}
         </div>
     `;
 }
@@ -523,13 +529,27 @@ function RenderMain() {
         const completedTodos = t.todos.filter(x => x.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
         const collapseThresholdMs = 2 * 24 * 60 * 60 * 1000;
         const now = Date.now();
-        const oldCompletedTodos = completedTodos.filter(td => {
+        const oldCompletedCandidates = completedTodos.filter(td => {
             const doneAt = td.completedAt || td.createdAt || 0;
             return doneAt > 0 && (now - doneAt) >= collapseThresholdMs;
         });
-        const recentCompletedTodos = completedTodos.filter(td => !oldCompletedTodos.includes(td));
+        const recentCompletedTodos = completedTodos.filter(td => !oldCompletedCandidates.includes(td));
+        const totalTodoCount = t.todos.length;
+        const shouldAutoCollapseOldCompleted = totalTodoCount > 10;
+        let defaultVisibleOldCompletedTodos = [];
+        let hiddenOldCompletedTodos = [];
+        if (shouldAutoCollapseOldCompleted) {
+            // 保底默认至少显示 10 条，优先折叠更早（更旧）的已完成待办。
+            const maxHiddenCount = Math.max(0, totalTodoCount - 10);
+            const hiddenCount = Math.min(oldCompletedCandidates.length, maxHiddenCount);
+            defaultVisibleOldCompletedTodos = oldCompletedCandidates.slice(0, oldCompletedCandidates.length - hiddenCount);
+            hiddenOldCompletedTodos = oldCompletedCandidates.slice(oldCompletedCandidates.length - hiddenCount);
+        } else {
+            defaultVisibleOldCompletedTodos = oldCompletedCandidates;
+            hiddenOldCompletedTodos = [];
+        }
         const isOldCompletedExpanded = !!state.ui.collapsedCompletedByTaskId?.[t.id];
-        const visibleOldCompletedTodos = isOldCompletedExpanded ? oldCompletedTodos : [];
+        const visibleHiddenOldCompletedTodos = isOldCompletedExpanded ? hiddenOldCompletedTodos : [];
         const todoAnimKeys = state.ui.todoAnimKeys || {};
         const mentionPicker = state.ui.mentionPicker || {};
         const mentionCandidates = mentionPicker.visible && mentionPicker.taskId === t.id
@@ -581,46 +601,34 @@ function RenderMain() {
                 <div class="flex-1 overflow-y-auto p-6 transition-colors duration-500 todo-list-container" style="background-color:${t.isLocked ? statusBg : '#f3f4f6'}">
                     <div class="max-w-4xl mx-auto space-y-8">
                         ${t.kind === 'text' ? `
-                        <!-- Text Task: No File, Show Progress -->
-                        <div class="p-10 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all bg-white shadow-sm relative group"
+                        <!-- Text Task: Compact Header -->
+                        <div class="p-4 rounded-2xl border-2 border-dashed transition-all bg-white shadow-sm"
                              style="border-color: ${t.isLocked ? statusColor : '#cbd5e1'}">
-                             
-                            <div class="mb-4 text-gray-400 group-hover:scale-105 transition-transform duration-300">
-                                ${Icon('file-text', '', 72, 'none', '#94a3b8')}
-                            </div>
-                            
-                            <h3 class="text-xl font-bold text-gray-800 mb-1">无文件任务</h3>
-                            <p class="text-sm text-gray-500 font-medium">直接在待办区域记录工作内容，通过"完成编辑"添加进度备注</p>
-                            <div class="h-4"></div>
-                            
-                            <div class="flex gap-2 mb-4">
-                                <button onclick="window.dispatch('openEditHistoryModal', '${t.id}')" 
-                                    class="flex items-center px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-900 shadow-sm transition-all text-sm font-medium">
-                                    ${Icon('file-clock', 'mr-2', 16)} 查看进度记录
-                                </button>
-                            </div>
-                            
-                            ${t.isLocked && locker ? `
-                                <div class="flex items-center px-4 py-1.5 rounded-lg text-sm font-medium animate-pulse
-                                    ${isMe ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-purple-100 text-purple-700 border border-purple-200'}">
-                                    ${Icon('lock', 'mr-2', 14)} ${locker.name} 正在占用...
+                            <div class="grid grid-cols-3 items-center gap-2 min-h-[52px]">
+                                <div></div>
+                                <div class="flex items-center justify-center">
+                                    ${!t.isLocked ? `
+                                        <button onclick="window.dispatch('startTask', '${t.id}')" 
+                                            class="flex items-center px-5 py-2.5 rounded-lg font-medium shadow-sm transition-transform active:scale-95 ${t.completed ? 'bg-gray-300 text-gray-600 cursor-not-allowed hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}" ${t.completed ? 'disabled' : ''}>
+                                            ${Icon('play', 'mr-2', 18)} ${t.completed ? '任务已完成' : '开始占用'}
+                                        </button>
+                                    ` : isMe ? `
+                                        <button onclick="window.dispatch('openActionModal', '${t.id}')" 
+                                            class="flex items-center px-5 py-2.5 rounded-lg font-medium shadow-sm bg-green-600 text-white hover:bg-green-700 transition-transform active:scale-95">
+                                            ${Icon('square', 'mr-2', 16)} 结束占用
+                                        </button>
+                                    ` : `
+                                        <div class="text-sm text-gray-500 font-medium">
+                                            ${locker ? `${locker.name} 正在占用...` : '进行中'}
+                                        </div>
+                                    `}
                                 </div>
-                            ` : ''}
-
-                            <div class="flex gap-4 mt-6">
-                                ${!t.isLocked ? `
-                                    <button onclick="window.dispatch('startTask', '${t.id}')" 
-                                        class="flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-transform active:scale-95 ${t.completed ? 'bg-gray-300 text-gray-600 cursor-not-allowed hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}" ${t.completed ? 'disabled' : ''}>
-                                        ${Icon('play', 'mr-2', 20)} ${t.completed ? '任务已完成' : '开始占用'}
+                                <div class="flex items-center justify-end">
+                                    <button onclick="window.dispatch('openEditHistoryModal', '${t.id}')" 
+                                        class="flex items-center px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-900 shadow-sm transition-all text-sm font-medium">
+                                        ${Icon('file-clock', 'mr-2', 16)} 查看进度记录
                                     </button>
-                                ` : ''}
-
-                                ${isMe ? `
-                                    <button onclick="window.dispatch('openActionModal', '${t.id}')" 
-                                        class="flex items-center px-6 py-3 rounded-lg font-medium shadow-md bg-green-600 text-white hover:bg-green-700 transition-transform active:scale-95">
-                                        ${Icon('settings-2', 'mr-2', 20)} 完成编辑
-                                    </button>
-                                ` : ''}
+                                </div>
                             </div>
                         </div>
                         ` : `
@@ -790,7 +798,7 @@ function RenderMain() {
                                     </div>
                                 `;
         }).join('')}
-                                ${(activeTodos.length && (recentCompletedTodos.length || visibleOldCompletedTodos.length || oldCompletedTodos.length)) ? '<div class="h-px bg-gray-100 my-4 mx-2"></div>' : ''}
+                                ${(activeTodos.length && (recentCompletedTodos.length || defaultVisibleOldCompletedTodos.length || hiddenOldCompletedTodos.length)) ? '<div class="h-px bg-gray-100 my-4 mx-2"></div>' : ''}
                                 ${recentCompletedTodos.map(todo => {
             const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
             return `
@@ -821,14 +829,44 @@ function RenderMain() {
                                     </div>
                                 `;
         }).join('')}
-                                ${oldCompletedTodos.length ? `
+                                ${defaultVisibleOldCompletedTodos.map(todo => {
+            const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
+            return `
+                                    <div class="flex items-start group p-3 rounded-lg transition-colors opacity-60 hover:opacity-100 relative">
+                                        <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>
+                                        <div class="flex-1 min-w-0 pt-0.5">
+                                            <div class="text-sm text-gray-400 line-through break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
+                                            ${(todo.images && todo.images.length) ? `
+                                                <div class="flex flex-wrap gap-2 mt-2">
+                                                    ${todo.images.map((img, idx) => `<div class="todo-attach-pill todo-attach-pill-readonly"><img src="${img}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(img).replace(/'/g, "\\'")}')" /><span class="todo-attach-pill-name">图片${idx + 1}</span></div>`).join('')}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                        <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
+                                            <button onclick="event.stopPropagation(); window.dispatch('copyTodoForAi', '${t.id}', '${todo.id}')" 
+                                                class="p-1.5 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded transition-colors" title="复制到聊天框">
+                                                ${Icon('copy', '', 14)}
+                                            </button>
+                                            <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 
+                                                class="p-1.5 hover:bg-blue-50 text-gray-400 hover:text-blue-500 rounded transition-colors" title="编辑">
+                                                ${Icon('edit-2', '', 14)}
+                                            </button>
+                                            <button onclick="event.stopPropagation(); window.dispatch('deleteTodo', '${t.id}', '${todo.id}')" 
+                                                class="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-colors" title="删除">
+                                                ${Icon('trash-2', '', 14)}
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+        }).join('')}
+                                ${hiddenOldCompletedTodos.length ? `
                                     <div class="px-3 py-2">
                                         <button onclick="window.dispatch('toggleCompletedTodoCollapse', '${t.id}')" class="text-xs text-gray-500 hover:text-gray-700 font-medium">
-                                            ${isOldCompletedExpanded ? `收起（已经折叠 ${oldCompletedTodos.length} 条已完成待办）` : `（已经折叠 ${oldCompletedTodos.length} 条已完成待办）点击展开`}
+                                            ${isOldCompletedExpanded ? `收起（已经折叠 ${hiddenOldCompletedTodos.length} 条已完成待办）` : `（已经折叠 ${hiddenOldCompletedTodos.length} 条已完成待办）点击展开`}
                                         </button>
                                     </div>
                                 ` : ''}
-                                ${visibleOldCompletedTodos.map(todo => {
+                                ${visibleHiddenOldCompletedTodos.map(todo => {
             const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
             return `
                                     <div class="flex items-start group p-3 rounded-lg transition-colors opacity-60 hover:opacity-100 relative">

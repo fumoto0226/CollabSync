@@ -70,7 +70,16 @@ let state = {
         aiLoading: false,
         projectSummary: '',
         memberListExpandedByProjectId: {},
-        myWorkPopoverOpen: false
+        myWorkPopoverOpen: false,
+        sidebarWidth: (() => {
+            try {
+                const v = parseInt(localStorage.getItem('cs_sidebar_width') || '', 10);
+                return Number.isFinite(v) ? v : 280;
+            } catch (e) {
+                return 280;
+            }
+        })(),
+        isSidebarResizing: false
     },
     activationCodes: []
 };

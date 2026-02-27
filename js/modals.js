@@ -256,14 +256,10 @@ function RenderModals() {
                     </div>
                     <div class="p-6 space-y-3">
                         ${isTextTask ? `
-                        <!-- 无文件任务：提交进度 -->
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">进度备注（可选）</label>
-                            <textarea id="progress-note-${t.id}" rows="3" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none resize-none" placeholder="记录本次进展情况，方便团队成员了解"></textarea>
-                        </div>
+                        <!-- 无文件任务：结束占用（不支持备注） -->
                         <button onclick="window.dispatch('submitProgress', '${t.id}')" 
                             class="w-full flex items-center justify-center px-4 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-md transition-all active:scale-95">
-                            ${Icon('check', 'mr-2', 18)} 提交进度并解锁
+                            ${Icon('check', 'mr-2', 18)} 结束占用
                         </button>
                         ` : `
                         <!-- 有文件任务：上传文件 -->
@@ -279,10 +275,12 @@ function RenderModals() {
                         </div>
                         `}
 
+                        ${!isTextTask ? `
                         <button onclick="window.dispatch('openConfirmModal', 'discard_changes', '${t.id}', '放弃修改', '确定要放弃所做的修改并解锁任务吗？这不会删除之前已上传的版本，只会放弃当前编辑周期内的修改。')" 
                             class="w-full flex items-center justify-center px-4 py-3 bg-white border-2 border-red-100 text-red-500 rounded-xl text-sm font-bold hover:bg-red-50 hover:border-red-200 transition-all active:scale-95">
                             ${Icon('x-circle', 'mr-2', 18)} 放弃修改 (不保存)
                         </button>
+                        ` : ''}
                         <button onclick="window.dispatch('closeActionModal')" class="w-full py-2 text-xs text-gray-400 hover:text-gray-600">取消</button>
                     </div>
                 </div>

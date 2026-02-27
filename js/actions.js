@@ -49,6 +49,40 @@ const Actions = {
         } catch (e) { }
         Render();
     },
+    startSidebarResize: (event) => {
+        if (!event) return;
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = state.ui.sidebarWidth || 280;
+        const MIN_W = 240;
+        const MAX_W = 460;
+
+        state.ui.isSidebarResizing = true;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        const onMove = (e) => {
+            const next = Math.max(MIN_W, Math.min(MAX_W, startWidth + (e.clientX - startX)));
+            if (next === state.ui.sidebarWidth) return;
+            state.ui.sidebarWidth = next;
+            Render();
+        };
+
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            state.ui.isSidebarResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            try {
+                localStorage.setItem('cs_sidebar_width', String(state.ui.sidebarWidth || 280));
+            } catch (e) { }
+            Render();
+        };
+
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    },
     openProjectContextMenu: (event, pid) => {
         if (!event) return;
         event.preventDefault();
@@ -968,13 +1002,6 @@ const Actions = {
         const t = state.tasks.find(t => t.id === tid);
         if (!t) return;
 
-        // 先读取进度备注，再触发重新渲染
-        let note = '';
-        const noteInput = document.getElementById(`progress-note-${tid}`);
-        if (noteInput) {
-            note = noteInput.value.trim();
-        }
-
         const now = Date.now();
         const duration = t.lockedAt ? now - t.lockedAt : 0;
 
@@ -989,8 +1016,7 @@ const Actions = {
             userId: state.currentUser.uid,
             timestamp: now,
             duration,
-            version: nextVer,
-            note
+            version: nextVer
         });
 
         // 释放锁定
