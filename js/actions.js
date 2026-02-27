@@ -1775,6 +1775,27 @@ const Actions = {
         state.ui.editorTaskId = tid;
         state.ui.editorContent = html || '';
     },
+    toggleCompletedTodoCollapse: (tid) => {
+        const prev = !!state.ui.collapsedCompletedByTaskId?.[tid];
+        state.ui.collapsedCompletedByTaskId = {
+            ...(state.ui.collapsedCompletedByTaskId || {}),
+            [tid]: !prev
+        };
+        Render();
+    },
+    handleTodoSubmitShortcut: (event, tid) => {
+        if (!event) return;
+        if (!(event.key === 'Enter' && (event.ctrlKey || event.metaKey))) return;
+        if (event.isComposing || state.ui.mentionComposing) return;
+        if (state.ui.todoSubmitUploading) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (state.ui.editingTodoId) {
+            Actions.saveTodo(tid);
+        } else {
+            Actions.addTodo(tid);
+        }
+    },
     setEditingTodo: (tid, todoId) => {
         const t = state.tasks.find(t => t.id === tid);
         const todo = t.todos.find(td => td.id === todoId);
@@ -1916,6 +1937,124 @@ const Actions = {
             console.warn('新增待办到 Firestore 失败（本地仍已更新）:', err);
         }
         Render();
+    },
+    copyTodoForAi: async (tid, tdid) => {
+        const t = state.tasks.find(x => x.id === tid);
+        const todo = t?.todos?.find(x => x.id === tdid);
+        if (!todo) return;
+
+        const html = String(todo.text || '');
+        const textBox = document.createElement('div');
+        textBox.innerHTML = html;
+        const plainText = (textBox.textContent || textBox.innerText || '').trim();
+        const imageUrls = (todo.images || []).filter(Boolean);
+        const textWithImages = imageUrls.length
+            ? `${plainText}\n${imageUrls.join('\n')}`.trim()
+            : plainText;
+
+        if (!navigator.clipboard) {
+            alert('当前浏览器不支持系统剪贴板。');
+            return;
+        }
+
+        const imageFetchFailures = [];
+        const fetchedBlobs = [];
+
+        try {
+            const hasWriteApi = !!(window.ClipboardItem && navigator.clipboard.write);
+            if (!hasWriteApi) {
+                await navigator.clipboard.writeText(textWithImages);
+                alert('已复制待办文字内容。当前环境不支持图片一起复制。');
+                return;
+            }
+
+            const htmlWithImages = imageUrls.length
+                ? `${html}<div>${imageUrls.map(u => `<img src="${u}" alt="todo-image" />`).join('')}</div>`
+                : html;
+
+            for (const url of imageUrls) {
+                try {
+                    const resp = await fetch(url, { mode: 'cors' });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const blob = await resp.blob();
+                    if (!(blob.type || '').startsWith('image/')) throw new Error(`非图片类型: ${blob.type || 'unknown'}`);
+                    fetchedBlobs.push(blob);
+                } catch (e) {
+                    imageFetchFailures.push({
+                        url,
+                        reason: e?.message || String(e || 'unknown')
+                    });
+                }
+            }
+
+            if (!imageUrls.length) {
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        'text/plain': new Blob([textWithImages], { type: 'text/plain' }),
+                        'text/html': new Blob([htmlWithImages], { type: 'text/html' })
+                    })
+                ]);
+                alert('已复制待办内容。');
+                return;
+            }
+
+            if (!fetchedBlobs.length) {
+                console.warn('图片全部抓取失败，可能是跨域/CORS限制：', imageFetchFailures);
+                await navigator.clipboard.writeText(textWithImages);
+                alert('已复制待办文字内容。图片抓取失败，可能是跨域(CORS)限制。');
+                return;
+            }
+
+            const firstBlob = fetchedBlobs[0];
+            const firstMime = firstBlob.type || 'image/png';
+
+            // 兼容优先：大多数聊天框对“首张图片+文字”或“仅首张图片”支持最好。
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        'text/plain': new Blob([textWithImages], { type: 'text/plain' }),
+                        'text/html': new Blob([htmlWithImages], { type: 'text/html' }),
+                        [firstMime]: firstBlob
+                    })
+                ]);
+                if (fetchedBlobs.length < imageUrls.length) {
+                    console.warn('部分图片抓取失败（仅复制首张图片到剪贴板）:', imageFetchFailures);
+                }
+                alert(`已复制待办文字和首张图片（共抓取 ${fetchedBlobs.length}/${imageUrls.length} 张）。`);
+                return;
+            } catch (eCombined) {
+                console.warn('组合复制失败，降级为仅图片复制:', eCombined);
+            }
+
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({ [firstMime]: firstBlob })
+                ]);
+                alert(`已复制首张图片（共抓取 ${fetchedBlobs.length}/${imageUrls.length} 张）。若需文字请再复制一次。`);
+                return;
+            } catch (eImageOnly) {
+                console.warn('仅图片复制也失败，降级为文字复制:', eImageOnly);
+            }
+
+            await navigator.clipboard.writeText(textWithImages);
+            alert('已复制待办文字内容。当前浏览器/页面不支持图片写入剪贴板。');
+        } catch (err) {
+            console.warn('复制待办失败，降级为纯文本复制:', err);
+            try {
+                await navigator.clipboard.writeText(textWithImages);
+                const reason = (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError'))
+                    ? '剪贴板权限被浏览器拦截'
+                    : '剪贴板写入失败';
+                console.warn(`图片/富文本复制失败原因：${reason}`, err);
+                if (imageFetchFailures.length) {
+                    console.warn('图片抓取失败详情（可能跨域/CORS）:', imageFetchFailures);
+                }
+                alert(`已复制待办文字内容。图片复制失败：${reason}，或图片链接跨域(CORS)受限。`);
+            } catch (e2) {
+                console.error('复制待办彻底失败:', e2);
+                alert('复制失败，请检查浏览器剪贴板权限。');
+            }
+        }
     },
     deleteTodo: async (tid, tdid) => {
         const { db, doc, updateDoc } = window.fb;

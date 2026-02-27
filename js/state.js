@@ -64,6 +64,7 @@ let state = {
         mentionComposing: false,
         imagePreviewUrl: null,
         todoAnimKeys: {},
+        collapsedCompletedByTaskId: {},
         todoSubmitUploading: false,
         isUploading: false,
         aiLoading: false,
