@@ -50,6 +50,13 @@ let state = {
         editorTaskId: null,
         editorContent: '',
         editorImages: [],
+        editorPriority: 'none',
+        todoPriorityMenuOpen: false,
+        todoPriorityMenuTarget: {
+            mode: null,
+            taskId: null,
+            todoId: null
+        },
         mentionPicker: {
             visible: false,
             taskId: null,

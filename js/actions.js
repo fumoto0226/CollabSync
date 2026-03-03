@@ -1811,6 +1811,51 @@ const Actions = {
         state.ui.editorTaskId = tid;
         state.ui.editorContent = html || '';
     },
+    closeTodoPriorityMenu: () => {
+        state.ui.todoPriorityMenuOpen = false;
+        state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null };
+        Render();
+    },
+    toggleTodoPriorityMenu: (mode = 'editor', taskId = null, todoId = null) => {
+        const sameTarget = state.ui.todoPriorityMenuOpen
+            && state.ui.todoPriorityMenuTarget?.mode === mode
+            && state.ui.todoPriorityMenuTarget?.taskId === taskId
+            && state.ui.todoPriorityMenuTarget?.todoId === todoId;
+        state.ui.todoPriorityMenuOpen = !sameTarget;
+        state.ui.todoPriorityMenuTarget = state.ui.todoPriorityMenuOpen
+            ? { mode, taskId, todoId }
+            : { mode: null, taskId: null, todoId: null };
+        Render();
+    },
+    setTodoEditorPriority: async (priority, taskId = null, todoId = null) => {
+        const nextPriority = ['high', 'medium', 'low', 'none'].includes(priority) ? priority : 'none';
+        const target = state.ui.todoPriorityMenuTarget || {};
+        const mode = target.mode || 'editor';
+        const resolvedTaskId = taskId || target.taskId || null;
+        const resolvedTodoId = todoId || target.todoId || null;
+
+        if (mode === 'todo' && resolvedTaskId && resolvedTodoId) {
+            const { db, doc, updateDoc } = window.fb;
+            const task = state.tasks.find(t => t.id === resolvedTaskId);
+            const todo = task?.todos?.find(td => td.id === resolvedTodoId);
+            if (!task || !todo) return;
+            todo.priority = nextPriority;
+            state.ui.todoPriorityMenuOpen = false;
+            state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null };
+            Render();
+            try {
+                await updateDoc(doc(db, 'tasks', resolvedTaskId), { todos: task.todos });
+            } catch (err) {
+                console.warn('更新待办优先级失败:', err);
+            }
+            return;
+        }
+
+        state.ui.editorPriority = nextPriority;
+        state.ui.todoPriorityMenuOpen = false;
+        state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null };
+        Render();
+    },
     toggleCompletedTodoCollapse: (tid) => {
         const prev = !!state.ui.collapsedCompletedByTaskId?.[tid];
         state.ui.collapsedCompletedByTaskId = {
@@ -1839,6 +1884,9 @@ const Actions = {
         state.ui.editorTaskId = tid;
         state.ui.editorContent = todo.text;
         state.ui.editorImages = Array.isArray(todo.images) ? todo.images.map((img, idx) => Actions.toEditorImageObject(img, idx)) : [];
+        state.ui.editorPriority = todo.priority || 'none';
+        state.ui.todoPriorityMenuOpen = false;
+        state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null };
         Actions.closeMentionPicker();
         Render();
     },
@@ -1847,6 +1895,9 @@ const Actions = {
         state.ui.editorTaskId = null;
         state.ui.editorContent = '';
         Actions.clearEditorImages();
+        state.ui.editorPriority = 'none';
+        state.ui.todoPriorityMenuOpen = false;
+        state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null };
         Actions.closeMentionPicker();
         Render();
     },
@@ -1876,9 +1927,9 @@ const Actions = {
                 Render();
             }
         }
-        if (todo) { todo.text = editor.innerHTML; todo.images = nextImages; }
+        if (todo) { todo.text = editor.innerHTML; todo.images = nextImages; todo.priority = state.ui.editorPriority || 'none'; }
         if (todo && window.queueTodoAnimation) window.queueTodoAnimation(tid, todo.id);
-        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; Actions.clearEditorImages();
+        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; state.ui.editorPriority = 'none'; state.ui.todoPriorityMenuOpen = false; state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null }; Actions.clearEditorImages();
         Actions.closeMentionPicker();
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
@@ -1918,11 +1969,12 @@ const Actions = {
             id: newTodoId,
             text: html,
             images: nextImages,
+            priority: state.ui.editorPriority || 'none',
             completed: false,
             createdAt: Date.now()
         });
         if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
-        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; Actions.clearEditorImages();
+        state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; state.ui.editorPriority = 'none'; state.ui.todoPriorityMenuOpen = false; state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null }; Actions.clearEditorImages();
         Actions.closeMentionPicker();
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
@@ -1961,11 +2013,12 @@ const Actions = {
             id: newTodoId,
             text: html,
             images: nextImages,
+            priority: state.ui.editorPriority || 'none',
             completed: false,
             createdAt: Date.now()
         });
         if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
-        editor.innerHTML = ''; state.ui.editorTaskId = null; state.ui.editorContent = ''; Actions.clearEditorImages();
+        editor.innerHTML = ''; state.ui.editorTaskId = null; state.ui.editorContent = ''; state.ui.editorPriority = 'none'; state.ui.todoPriorityMenuOpen = false; state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null }; Actions.clearEditorImages();
         Actions.closeMentionPicker();
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });

@@ -1,5 +1,160 @@
 // --- Render Functions ---
 
+const TODO_PRIORITY_META = {
+    high: { rank: 3, label: '高优先级', stroke: '#ef4444', bg: '#fef2f2', text: '#dc2626' },
+    medium: { rank: 2, label: '中优先级', stroke: '#f59e0b', bg: '#fffbeb', text: '#d97706' },
+    low: { rank: 1, label: '低优先级', stroke: '#3b82f6', bg: '#eff6ff', text: '#2563eb' },
+    none: { rank: 0, label: '无优先级', stroke: '#d1d5db', bg: '#ffffff', text: '#9ca3af' }
+};
+
+function getTodoPriorityMeta(priority) {
+    return TODO_PRIORITY_META[priority] || TODO_PRIORITY_META.none;
+}
+
+function getTodoSortTime(todo) {
+    return todo.completed ? (todo.completedAt || todo.createdAt || 0) : (todo.createdAt || 0);
+}
+
+function sortTodosByPriorityAndTime(list) {
+    return [...(list || [])].sort((a, b) => {
+        const prioDiff = getTodoPriorityMeta(b.priority).rank - getTodoPriorityMeta(a.priority).rank;
+        if (prioDiff !== 0) return prioDiff;
+        return getTodoSortTime(b) - getTodoSortTime(a);
+    });
+}
+
+function groupTodosByPriority(list) {
+    const groups = [];
+    (list || []).forEach(todo => {
+        const priority = getTodoPriorityValue(todo);
+        const prev = groups[groups.length - 1];
+        if (prev && prev.priority === priority) {
+            prev.items.push(todo);
+        } else {
+            groups.push({ priority, items: [todo] });
+        }
+    });
+    return groups;
+}
+
+function getTodoPriorityValue(todo) {
+    return Object.prototype.hasOwnProperty.call(TODO_PRIORITY_META, todo?.priority) ? todo.priority : 'none';
+}
+
+function renderTodoImages(images) {
+    if (!images?.length) return '';
+    return `
+        <div class="flex flex-wrap gap-2 mt-2">
+            ${images.map((img, idx) => `<div class="todo-attach-pill todo-attach-pill-readonly"><img src="${img}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(img).replace(/'/g, "\\'")}')" /><span class="todo-attach-pill-name">图片${idx + 1}</span></div>`).join('')}
+        </div>
+    `;
+}
+
+function renderPriorityMenu(priority, onclickExpr) {
+    const priorityOptions = ['high', 'medium', 'low', 'none'];
+    return `
+        <div class="todo-priority-menu">
+            ${priorityOptions.map(option => {
+        const meta = getTodoPriorityMeta(option);
+        const selected = priority === option;
+        return `
+                    <button
+                        onmousedown="event.preventDefault()"
+                        onclick="${onclickExpr(option)}"
+                        class="todo-priority-option ${selected ? 'todo-priority-option-selected' : ''}"
+                        style="--priority-stroke:${meta.stroke}; --priority-bg:${meta.bg}; --priority-text:${meta.text};">
+                        <span class="todo-priority-option-flag">${Icon('flag', '', 16, option === 'none' ? 'none' : meta.stroke, meta.stroke)}</span>
+                        <span class="todo-priority-option-label">${meta.label}</span>
+                        ${selected ? `<span class="todo-priority-option-check">${Icon('check', '', 16)}</span>` : '<span class="w-4 h-4"></span>'}
+                    </button>
+                `;
+    }).join('')}
+        </div>
+    `;
+}
+
+function renderTodoActions(taskId, todo) {
+    const priority = getTodoPriorityValue(todo);
+    const priorityMeta = getTodoPriorityMeta(priority);
+    const priorityTarget = state.ui.todoPriorityMenuTarget || {};
+    const priorityMenuOpen = state.ui.todoPriorityMenuOpen
+        && priorityTarget.mode === 'todo'
+        && priorityTarget.taskId === taskId
+        && priorityTarget.todoId === todo.id;
+    const priorityButtonClass = priority === 'none'
+        ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+        : '';
+    return `
+        <div class="flex items-center ${priorityMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity ml-2 gap-1">
+            <div class="relative">
+                <button onclick="event.stopPropagation(); window.dispatch('toggleTodoPriorityMenu', 'todo', '${taskId}', '${todo.id}')" 
+                    class="p-1.5 rounded transition-colors ${priorityButtonClass}" title="${priorityMeta.label}"
+                    style="${priority === 'none' ? '' : `color:${priorityMeta.stroke}; background:${priorityMeta.bg};`}">
+                    ${Icon('flag', '', 14, priority === 'none' ? 'none' : priorityMeta.stroke, priorityMeta.stroke)}
+                </button>
+                ${priorityMenuOpen ? renderPriorityMenu(priority, (option) => `window.dispatch('setTodoEditorPriority', '${option}', '${taskId}', '${todo.id}')`) : ''}
+            </div>
+            <button onclick="event.stopPropagation(); window.dispatch('copyTodoForAi', '${taskId}', '${todo.id}')" 
+                class="p-1.5 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded transition-colors" title="复制到聊天框">
+                ${Icon('copy', '', 14)}
+            </button>
+            <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${taskId}', '${todo.id}')" 
+                class="p-1.5 hover:bg-blue-50 text-gray-400 hover:text-blue-500 rounded transition-colors" title="编辑">
+                ${Icon('edit-2', '', 14)}
+            </button>
+            <button onclick="event.stopPropagation(); window.dispatch('deleteTodo', '${taskId}', '${todo.id}')" 
+                class="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-colors" title="删除">
+                ${Icon('trash-2', '', 14)}
+            </button>
+        </div>
+    `;
+}
+
+function renderTodoItem(taskId, todo, opts = {}) {
+    const { completed = false, grouped = false, animated = false, editing = false } = opts;
+    const wrapperClass = grouped
+        ? `todo-priority-item group ${completed ? 'todo-priority-item-completed' : ''} ${editing ? 'ring-2 ring-blue-100 bg-blue-50 rounded-xl' : ''}`
+        : `flex items-start group p-3 rounded-lg transition-colors relative ${completed ? 'opacity-60 hover:opacity-100' : 'hover:bg-gray-50 border border-transparent hover:border-gray-100'} ${editing ? 'ring-2 ring-blue-100 bg-blue-50' : ''}`;
+    const iconHtml = completed
+        ? `<div onclick="window.dispatch('toggleTodo', '${taskId}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>`
+        : `<div onclick="window.dispatch('toggleTodo', '${taskId}', '${todo.id}')" class="mt-0.5 mr-3 text-gray-300 group-hover:text-indigo-500 transition-colors cursor-pointer">${Icon('circle', '', 20)}</div>`;
+    const textClass = completed ? 'text-sm text-gray-400 line-through' : 'text-sm text-gray-700 font-medium';
+    return `
+        <div class="${wrapperClass}">
+            ${iconHtml}
+            <div class="flex-1 min-w-0 pt-0.5">
+                <div class="${textClass} break-words whitespace-normal leading-relaxed ${animated ? 'todo-text-enter' : ''}">${todo.text}</div>
+                ${renderTodoImages(todo.images)}
+            </div>
+            ${renderTodoActions(taskId, todo)}
+        </div>
+    `;
+}
+
+function renderTodoGroups(taskId, todos, opts = {}) {
+    const { completed = false, todoAnimKeys = {}, editingTodoId = null } = opts;
+    return groupTodosByPriority(todos).map(group => {
+        if (group.priority === 'none') {
+            return group.items.map(todo => renderTodoItem(taskId, todo, {
+                completed,
+                grouped: false,
+                animated: !!todoAnimKeys[`${taskId}:${todo.id}`],
+                editing: editingTodoId === todo.id
+            })).join('');
+        }
+        return `
+            <div class="todo-priority-group todo-priority-group-${group.priority} ${completed ? 'todo-priority-group-completed' : ''}">
+                ${group.items.map(todo => renderTodoItem(taskId, todo, {
+                    completed,
+                    grouped: true,
+                    animated: !!todoAnimKeys[`${taskId}:${todo.id}`],
+                    editing: editingTodoId === todo.id
+                })).join('')}
+            </div>
+        `;
+    }).join('');
+}
+
 function RenderSidebar() {
     const { projects, expandedProjects, activeView } = state;
     const sidebarWidth = Math.max(240, Math.min(460, state.ui.sidebarWidth || 280));
@@ -528,8 +683,8 @@ function RenderMain() {
         const isMe = t.lockedBy === state.currentUser.uid;
         const statusColor = isMe ? COLOR_ME : COLOR_OTHER;
         const statusBg = isMe ? BG_ME : BG_OTHER;
-        const activeTodos = t.todos.filter(x => !x.completed).sort((a, b) => b.createdAt - a.createdAt);
-        const completedTodos = t.todos.filter(x => x.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+        const activeTodos = sortTodosByPriorityAndTime(t.todos.filter(x => !x.completed));
+        const completedTodos = sortTodosByPriorityAndTime(t.todos.filter(x => x.completed));
         const collapseThresholdMs = 2 * 24 * 60 * 60 * 1000;
         const now = Date.now();
         const oldCompletedCandidates = completedTodos.filter(td => {
@@ -561,9 +716,16 @@ function RenderMain() {
                 .filter(Boolean)
             : [];
         const durationStr = t.isLocked ? getDuration(t.lockedAt) : '00:00';
+        const editorPriority = getTodoPriorityValue({ priority: state.ui.editorPriority });
+        const editorPriorityMeta = getTodoPriorityMeta(editorPriority);
+        const priorityTarget = state.ui.todoPriorityMenuTarget || {};
+        const editorPriorityMenuOpen = state.ui.todoPriorityMenuOpen
+            && priorityTarget.mode === 'editor'
+            && priorityTarget.taskId === t.id;
 
         return `
             <div class="flex-1 flex flex-col h-full bg-[#f3f4f6]" id="main-scroll" data-scroll>
+                ${state.ui.todoPriorityMenuOpen ? `<div class="fixed inset-0 z-[65]" onclick="window.dispatch('closeTodoPriorityMenu')"></div>` : ''}
                  <div class="px-6 py-5 border-b flex justify-between items-center bg-white z-10 shadow-sm sticky top-0">
                     <div>
                         <div class="flex items-center gap-3">
@@ -693,13 +855,19 @@ function RenderMain() {
                             </div>
                             
                             <div class="mb-6 border rounded-xl overflow-visible shadow-sm focus-within:ring-2 ring-indigo-500 transition-all bg-white relative">
-                                <div class="flex items-center gap-1 p-2 border-b bg-gray-50 text-gray-600 rounded-t-xl">
+                                <div class="flex items-center gap-1 p-2 border-b bg-gray-50 text-gray-600 rounded-t-xl relative">
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'bold')" class="p-1.5 hover:bg-gray-200 rounded text-xs font-bold w-8" title="加粗">B</button>
                                     <div class="w-px h-4 bg-gray-300 mx-1"></div>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'backColor', '#fef08a')" class="w-6 h-6 rounded bg-yellow-200 hover:ring-2 ring-yellow-400 border border-yellow-300 mx-1" title="黄色背景"></button>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'backColor', '#bbf7d0')" class="w-6 h-6 rounded bg-green-200 hover:ring-2 ring-green-400 border border-green-300 mx-1" title="绿色背景"></button>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'backColor', '#bfdbfe')" class="w-6 h-6 rounded bg-blue-200 hover:ring-2 ring-blue-400 border border-blue-300 mx-1" title="蓝色背景"></button>
-                                    <button onmousedown="event.preventDefault()" onclick="window.dispatch('insertMentionTrigger', '${t.id}')" class="px-2 h-8 rounded border border-gray-200 text-xs font-bold hover:bg-gray-100 text-gray-600 ml-1" title="@ 提及">@</button>
+                                    <button onmousedown="event.preventDefault()" onclick="window.dispatch('insertMentionTrigger', '${t.id}')" class="w-8 h-8 inline-flex items-center justify-center rounded text-xs font-bold hover:bg-gray-100 text-gray-600 ml-1" title="@ 提及">@</button>
+                                    <div class="relative ml-1">
+                                        <button onmousedown="event.preventDefault()" onclick="window.dispatch('toggleTodoPriorityMenu', 'editor', '${t.id}')" class="w-8 h-8 inline-flex items-center justify-center rounded transition-colors ${t.completed ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:bg-gray-100'}" style="${editorPriority === 'none' ? 'color:#9ca3af;' : `color:${editorPriorityMeta.stroke}; background:${editorPriorityMeta.bg};`}" title="${editorPriorityMeta.label}">
+                                            ${Icon('flag', '', 14, editorPriority === 'none' ? 'none' : editorPriorityMeta.stroke, editorPriorityMeta.stroke)}
+                                        </button>
+                                        ${editorPriorityMenuOpen ? renderPriorityMenu(editorPriority, (priority) => `window.dispatch('setTodoEditorPriority', '${priority}', '${t.id}')`) : ''}
+                                    </div>
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'removeFormat')" class="ml-auto p-1.5 hover:bg-gray-200 rounded text-xs" title="清除格式">${Icon('eraser', '', 14)}</button>
                                 </div>
                                 <div class="relative">
@@ -767,97 +935,10 @@ function RenderMain() {
                             </div>
 
                             <div class="space-y-2">
-                                ${activeTodos.map(todo => {
-            const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
-            return `
-                                    <div class="flex items-start group hover:bg-gray-50 p-3 rounded-lg transition-colors border border-transparent hover:border-gray-100 relative ${state.ui.editingTodoId === todo.id ? 'ring-2 ring-blue-100 bg-blue-50' : ''}">
-                                        <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-gray-300 group-hover:text-indigo-500 transition-colors cursor-pointer">${Icon('circle', '', 20)}</div>
-                                        <div class="flex-1 min-w-0 pt-0.5">
-                                            <div class="text-sm text-gray-700 font-medium break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
-                                            ${(todo.images && todo.images.length) ? `
-                                                <div class="flex flex-wrap gap-2 mt-2">
-                                                    ${todo.images.map((img, idx) => `<div class="todo-attach-pill todo-attach-pill-readonly"><img src="${img}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(img).replace(/'/g, "\\'")}')" /><span class="todo-attach-pill-name">图片${idx + 1}</span></div>`).join('')}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                        <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
-                                            <button onclick="event.stopPropagation(); window.dispatch('copyTodoForAi', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded transition-colors" title="复制到聊天框">
-                                                ${Icon('copy', '', 14)}
-                                            </button>
-                                            <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-blue-50 text-gray-400 hover:text-blue-500 rounded transition-colors" title="编辑">
-                                                ${Icon('edit-2', '', 14)}
-                                            </button>
-                                            <button onclick="event.stopPropagation(); window.dispatch('deleteTodo', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-colors" title="删除">
-                                                ${Icon('trash-2', '', 14)}
-                                            </button>
-                                        </div>
-                                    </div>
-                                `;
-        }).join('')}
+                                ${renderTodoGroups(t.id, activeTodos, { todoAnimKeys, editingTodoId: state.ui.editingTodoId })}
                                 ${(activeTodos.length && (recentCompletedTodos.length || defaultVisibleOldCompletedTodos.length || hiddenOldCompletedTodos.length)) ? '<div class="h-px bg-gray-100 my-4 mx-2"></div>' : ''}
-                                ${recentCompletedTodos.map(todo => {
-            const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
-            return `
-                                    <div class="flex items-start group p-3 rounded-lg transition-colors opacity-60 hover:opacity-100 relative">
-                                        <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>
-                                        <div class="flex-1 min-w-0 pt-0.5">
-                                            <div class="text-sm text-gray-400 line-through break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
-                                            ${(todo.images && todo.images.length) ? `
-                                                <div class="flex flex-wrap gap-2 mt-2">
-                                                    ${todo.images.map((img, idx) => `<div class="todo-attach-pill todo-attach-pill-readonly"><img src="${img}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(img).replace(/'/g, "\\'")}')" /><span class="todo-attach-pill-name">图片${idx + 1}</span></div>`).join('')}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                        <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
-                                            <button onclick="event.stopPropagation(); window.dispatch('copyTodoForAi', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded transition-colors" title="复制到聊天框">
-                                                ${Icon('copy', '', 14)}
-                                            </button>
-                                            <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-blue-50 text-gray-400 hover:text-blue-500 rounded transition-colors" title="编辑">
-                                                ${Icon('edit-2', '', 14)}
-                                            </button>
-                                            <button onclick="event.stopPropagation(); window.dispatch('deleteTodo', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-colors" title="删除">
-                                                ${Icon('trash-2', '', 14)}
-                                            </button>
-                                        </div>
-                                    </div>
-                                `;
-        }).join('')}
-                                ${defaultVisibleOldCompletedTodos.map(todo => {
-            const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
-            return `
-                                    <div class="flex items-start group p-3 rounded-lg transition-colors opacity-60 hover:opacity-100 relative">
-                                        <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>
-                                        <div class="flex-1 min-w-0 pt-0.5">
-                                            <div class="text-sm text-gray-400 line-through break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
-                                            ${(todo.images && todo.images.length) ? `
-                                                <div class="flex flex-wrap gap-2 mt-2">
-                                                    ${todo.images.map((img, idx) => `<div class="todo-attach-pill todo-attach-pill-readonly"><img src="${img}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(img).replace(/'/g, "\\'")}')" /><span class="todo-attach-pill-name">图片${idx + 1}</span></div>`).join('')}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                        <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
-                                            <button onclick="event.stopPropagation(); window.dispatch('copyTodoForAi', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded transition-colors" title="复制到聊天框">
-                                                ${Icon('copy', '', 14)}
-                                            </button>
-                                            <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-blue-50 text-gray-400 hover:text-blue-500 rounded transition-colors" title="编辑">
-                                                ${Icon('edit-2', '', 14)}
-                                            </button>
-                                            <button onclick="event.stopPropagation(); window.dispatch('deleteTodo', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-colors" title="删除">
-                                                ${Icon('trash-2', '', 14)}
-                                            </button>
-                                        </div>
-                                    </div>
-                                `;
-        }).join('')}
+                                ${renderTodoGroups(t.id, recentCompletedTodos, { completed: true, todoAnimKeys, editingTodoId: state.ui.editingTodoId })}
+                                ${renderTodoGroups(t.id, defaultVisibleOldCompletedTodos, { completed: true, todoAnimKeys, editingTodoId: state.ui.editingTodoId })}
                                 ${hiddenOldCompletedTodos.length ? `
                                     <div class="px-3 py-2">
                                         <button onclick="window.dispatch('toggleCompletedTodoCollapse', '${t.id}')" class="text-xs text-gray-500 hover:text-gray-700 font-medium">
@@ -865,36 +946,7 @@ function RenderMain() {
                                         </button>
                                     </div>
                                 ` : ''}
-                                ${visibleHiddenOldCompletedTodos.map(todo => {
-            const isAnim = !!todoAnimKeys[`${t.id}:${todo.id}`];
-            return `
-                                    <div class="flex items-start group p-3 rounded-lg transition-colors opacity-60 hover:opacity-100 relative">
-                                        <div onclick="window.dispatch('toggleTodo', '${t.id}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>
-                                        <div class="flex-1 min-w-0 pt-0.5">
-                                            <div class="text-sm text-gray-400 line-through break-words whitespace-normal leading-relaxed ${isAnim ? 'todo-text-enter' : ''}">${todo.text}</div>
-                                            ${(todo.images && todo.images.length) ? `
-                                                <div class="flex flex-wrap gap-2 mt-2">
-                                                    ${todo.images.map((img, idx) => `<div class="todo-attach-pill todo-attach-pill-readonly"><img src="${img}" class="todo-attach-pill-thumb" onclick="window.dispatch('openImagePreview', '${String(img).replace(/'/g, "\\'")}')" /><span class="todo-attach-pill-name">图片${idx + 1}</span></div>`).join('')}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                        <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2 gap-1">
-                                            <button onclick="event.stopPropagation(); window.dispatch('copyTodoForAi', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded transition-colors" title="复制到聊天框">
-                                                ${Icon('copy', '', 14)}
-                                            </button>
-                                            <button onclick="event.stopPropagation(); window.dispatch('setEditingTodo', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-blue-50 text-gray-400 hover:text-blue-500 rounded transition-colors" title="编辑">
-                                                ${Icon('edit-2', '', 14)}
-                                            </button>
-                                            <button onclick="event.stopPropagation(); window.dispatch('deleteTodo', '${t.id}', '${todo.id}')" 
-                                                class="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-colors" title="删除">
-                                                ${Icon('trash-2', '', 14)}
-                                            </button>
-                                        </div>
-                                    </div>
-                                `;
-        }).join('')}
+                                ${renderTodoGroups(t.id, visibleHiddenOldCompletedTodos, { completed: true, todoAnimKeys, editingTodoId: state.ui.editingTodoId })}
                                 ${t.todos.length === 0 ? '<div class="text-center py-8 text-gray-400 text-sm italic">暂无待办</div>' : ''}
                             </div>
                         </div>
