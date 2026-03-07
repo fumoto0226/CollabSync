@@ -497,7 +497,7 @@ function RenderModals() {
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
                                                 ${v.source === 'github'
-                    ? `<span>${v.branch || 'main'} 分支</span> • <span>commit ${String(v.commitSha || '').slice(0, 7)}</span> • <span>${formatDate(v.ts)}</span>`
+                    ? `<span>commit ${String(v.commitSha || '').slice(0, 7)}</span> • <span>${formatDate(v.ts)}</span>`
                     : `<span>${formatDate(v.ts)}</span> • <span>${v.size}</span>`}
                                             </p>
                                             ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">备注：${v.note}</p>` : ''}
@@ -505,7 +505,7 @@ function RenderModals() {
                                     </div>
 
                                     <button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                                        ${Icon('download', 'mr-2', 14)} ${v.source === 'github' ? '从 GitHub 下载' : '仅下载'}
+                                        ${Icon('download', 'mr-2', 14)} 仅下载
                                     </button>
                                 </div>
                             `).join('')}
