@@ -20,7 +20,13 @@ function Render() {
     const portal = document.getElementById('modal-portal');
     if (!app) return;
 
-    app.innerHTML = RenderSidebar() + RenderMain();
+    if (state.ui.isMobile) {
+        app.innerHTML = state.ui.mobilePane === 'sidebar'
+            ? RenderSidebar({ mobile: true })
+            : RenderMobileMainShell();
+    } else {
+        app.innerHTML = RenderSidebar() + RenderMain();
+    }
     portal.innerHTML = RenderModals();
 
     // Re-initialize icons
@@ -92,6 +98,39 @@ function Render() {
             sel.addRange(range);
         }
     }
+
+    // Edit flow only: jump to editor when entering edit mode, then jump back to the edited todo after save.
+    const scrollTarget = state.ui.todoScrollTarget;
+    if (scrollTarget && state.activeView?.type === 'task_detail' && scrollTarget.taskId === currentTaskId) {
+        requestAnimationFrame(() => {
+            if (scrollTarget.type === 'editor') {
+                const panel = document.getElementById(`todo-editor-panel-${scrollTarget.taskId}`);
+                const currentEditor = document.getElementById('todo-editor');
+                if (panel) {
+                    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                if (currentEditor) {
+                    currentEditor.focus();
+                }
+            } else if (scrollTarget.type === 'todo' && scrollTarget.todoId) {
+                const todoEl = document.getElementById(`todo-item-${scrollTarget.taskId}-${scrollTarget.todoId}`);
+                if (todoEl) {
+                    todoEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+            state.ui.todoScrollTarget = null;
+        });
+    }
+}
+
+function syncResponsiveLayout() {
+    const isMobile = window.innerWidth < 768;
+    if (state.ui.isMobile === isMobile) return;
+    state.ui.isMobile = isMobile;
+    state.ui.mobilePane = isMobile
+        ? (state.activeView?.type === 'welcome' ? 'sidebar' : 'main')
+        : 'main';
+    Render();
 }
 
 // Global Dispatcher
@@ -112,4 +151,6 @@ setInterval(() => {
 }, 1000);
 
 // Initial Render
+window.addEventListener('resize', syncResponsiveLayout);
+syncResponsiveLayout();
 Render();

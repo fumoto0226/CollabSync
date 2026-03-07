@@ -252,6 +252,9 @@ function RenderModals() {
         const tid = state.ui.actionModalTaskId;
         const t = state.tasks.find(x => x.id === tid);
         const isTextTask = t.kind === 'text';
+        const githubLinked = !!t.github?.enabled;
+        const primaryActionLabel = githubLinked ? '从 GitHub 记录版本并解锁' : '上传新版本并解锁';
+        const primaryActionIcon = githubLinked ? 'github' : 'upload';
 
         return `
             <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 fade-in" onclick="if(event.target===this) window.dispatch('closeActionModal')">
@@ -270,8 +273,8 @@ function RenderModals() {
                         ` : `
                         <!-- 有文件任务：上传文件 -->
                         <button onclick="window.dispatch('triggerUploadInModal', '${t.id}')" 
-                            class="w-full flex items-center justify-center px-4 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-md transition-all active:scale-95">
-                            ${state.ui.isUploading ? Icon('loader-2', 'mr-2 animate-spin', 18) : Icon('upload', 'mr-2', 18)} 上传新版本并解锁
+                            class="w-full flex items-center justify-center px-4 py-3 ${githubLinked ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-95">
+                            ${state.ui.isUploading ? Icon('loader-2', 'mr-2 animate-spin', 18) : Icon(primaryActionIcon, 'mr-2', 18)} ${primaryActionLabel}
                         </button>
                         <input type="file" id="modal-file-upload-${t.id}" class="hidden" onchange="window.dispatch('uploadFile', '${t.id}', this)">
 
@@ -305,7 +308,8 @@ function RenderModals() {
                 size: t.file.size,
                 ts: t.file.lastUpdated,
                 note: t.file.note || '',
-                isLatest: true
+                isLatest: true,
+                source: t.file.source || 'storage'
             });
         }
         (t?.activities || []).forEach(act => {
@@ -315,7 +319,8 @@ function RenderModals() {
                     size: act.size || 'Unknown',
                     ts: act.timestamp,
                     note: act.note || '',
-                    isLatest: false
+                    isLatest: false,
+                    source: act.source || 'storage'
                 });
             }
         });
@@ -360,6 +365,7 @@ function RenderModals() {
                                         <div>
                                             <div class="flex items-center gap-2">
                                                 <h4 class="text-lg font-bold text-gray-800">v${v.version}</h4>
+                                                ${v.source === 'github' ? '<span class="text-[11px] font-semibold text-blue-600">GitHub</span>' : ''}
                                                 ${v.isLatest ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
@@ -401,7 +407,8 @@ function RenderModals() {
                 size: t.file.size,
                 ts: t.file.lastUpdated,
                 note: t.file.note || '',
-                isLatest: true
+                isLatest: true,
+                source: t.file.source || 'storage'
             });
         }
         (t.activities || []).forEach(act => {
@@ -412,7 +419,8 @@ function RenderModals() {
                         size: act.size || 'Unknown',
                         ts: act.timestamp,
                         note: act.note || '',
-                        isLatest: false
+                        isLatest: false,
+                        source: act.source || 'storage'
                     });
                 }
             }
@@ -474,6 +482,7 @@ function RenderModals() {
                                         <div>
                                             <div class="flex items-center gap-2">
                                                 <h4 class="text-lg font-bold text-gray-800">v${v.version}</h4>
+                                                ${v.source === 'github' ? '<span class="text-[11px] font-semibold text-blue-600">GitHub</span>' : ''}
                                                 ${v.isLatest ? '<span class="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
@@ -553,6 +562,50 @@ function RenderModals() {
                     <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
                         <button onclick="window.dispatch('closeEditTaskModal')" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">取消</button>
                         <button onclick="window.dispatch('saveTaskEdit')" class="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm">保存</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    if (state.ui.githubLinkTaskId) {
+        const tid = state.ui.githubLinkTaskId;
+        const t = state.tasks.find(x => x.id === tid);
+        const githubLink = t?.github?.enabled ? t.github : null;
+        if (!t) return '';
+        return `
+            <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 fade-in" onclick="if(event.target===this) window.dispatch('closeGithubLinkModal')">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onclick="event.stopPropagation()">
+                    <div class="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">链接 GitHub 仓库</h3>
+                            <p class="text-xs text-gray-500 mt-1">当前只支持公开仓库</p>
+                        </div>
+                        <button onclick="window.dispatch('closeGithubLinkModal')" class="text-gray-400 hover:text-gray-600">${Icon('x', '', 20)}</button>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">仓库地址</label>
+                            <input id="github-repo-url" type="text" value="${githubLink?.repoUrl || ''}" placeholder="https://github.com/owner/repo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" />
+                            <p class="text-xs text-gray-400 mt-2">只接受完整公开仓库地址，不接受私有仓库。</p>
+                        </div>
+                        ${githubLink ? `
+                            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                                <div class="text-sm font-semibold text-emerald-700">${githubLink.owner}/${githubLink.repo}</div>
+                                <div class="text-xs text-emerald-600 mt-1">默认分支：${githubLink.branch || 'main'}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="px-6 py-4 bg-gray-50 border-t flex justify-between gap-3">
+                        <div>
+                            ${githubLink ? `
+                                <button onclick="window.dispatch('disconnectGithubLink', '${tid}')" class="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg">断开链接</button>
+                            ` : '<span></span>'}
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="window.dispatch('closeGithubLinkModal')" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">取消</button>
+                            <button onclick="window.dispatch('saveGithubLink')" class="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm">保存链接</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -671,7 +724,7 @@ function RenderModals() {
             } else if (isUpload) {
                 icon = Icon('check-circle-2', '', 20);
                 iconBg = isMeAct ? 'bg-green-100 text-green-600' : 'bg-purple-100 text-purple-700';
-                title = `提交版本 v${act.version}`;
+                title = `提交版本 v${act.version}${act.source === 'github' ? ' · GitHub' : ''}`;
             } else if (isAutoDiscard) {
                 icon = Icon('clock', '', 20);
                 iconBg = 'bg-orange-100 text-orange-600';

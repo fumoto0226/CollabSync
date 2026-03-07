@@ -27,6 +27,7 @@ const Actions = {
         const { auth, signOut } = window.fb;
         await signOut(auth);
         state.activeView = { type: 'welcome' };
+        state.ui.mobilePane = 'sidebar';
         try {
             localStorage.removeItem('cs_last_view');
         } catch (e) { }
@@ -36,10 +37,17 @@ const Actions = {
     setView: (view) => {
         if (state.authStatus !== 'authenticated') return;
         state.activeView = view;
+        if (state.ui.isMobile) {
+            state.ui.mobilePane = view.type === 'welcome' ? 'sidebar' : 'main';
+        }
         if (view.type === 'project_dashboard') Actions.fetchSummary(view.projectId);
         try {
             localStorage.setItem('cs_last_view', JSON.stringify(view));
         } catch (e) { }
+        Render();
+    },
+    goMobileSidebar: () => {
+        state.ui.mobilePane = 'sidebar';
         Render();
     },
     toggleProject: (pid) => {
@@ -753,6 +761,208 @@ const Actions = {
     closeStartModal: () => { state.ui.startModalTaskId = null; Render(); },
     openEditHistoryModal: (tid) => { state.ui.editHistoryModalTaskId = tid; Render(); },
     closeEditHistoryModal: () => { state.ui.editHistoryModalTaskId = null; Render(); },
+    openGithubLinkModal: (tid) => {
+        state.ui.githubLinkTaskId = tid;
+        Render();
+    },
+    closeGithubLinkModal: () => {
+        state.ui.githubLinkTaskId = null;
+        Render();
+    },
+    parseGithubRepoUrl: (input) => {
+        const raw = String(input || '').trim();
+        if (!raw) return null;
+        try {
+            const normalized = raw.startsWith('http') ? raw : `https://${raw}`;
+            const url = new URL(normalized);
+            if (url.hostname !== 'github.com' && url.hostname !== 'www.github.com') return null;
+            const parts = url.pathname.split('/').filter(Boolean);
+            if (parts.length < 2) return null;
+            const owner = parts[0];
+            const repo = parts[1].replace(/\.git$/i, '');
+            if (!owner || !repo) return null;
+            return { owner, repo, repoUrl: `https://github.com/${owner}/${repo}` };
+        } catch (e) {
+            return null;
+        }
+    },
+    saveGithubLink: async () => {
+        const { db, doc, updateDoc } = window.fb;
+        const tid = state.ui.githubLinkTaskId;
+        if (!tid) return;
+        const task = state.tasks.find(t => t.id === tid);
+        if (!task) return;
+
+        const input = document.getElementById('github-repo-url');
+        const parsed = Actions.parseGithubRepoUrl(input?.value || '');
+        if (!parsed) {
+            alert('请输入公开 GitHub 仓库地址，例如 https://github.com/owner/repo');
+            return;
+        }
+
+        try {
+            const resp = await fetch(`https://api.github.com/repos/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`, {
+                headers: { 'Accept': 'application/vnd.github+json' }
+            });
+            if (!resp.ok) {
+                throw new Error('仓库不存在或暂时无法访问');
+            }
+            const repoData = await resp.json();
+            if (repoData.private) {
+                alert('当前只支持公开仓库，请换一个公开 GitHub 仓库。');
+                return;
+            }
+
+            task.github = {
+                enabled: true,
+                repoUrl: parsed.repoUrl,
+                owner: parsed.owner,
+                repo: parsed.repo,
+                branch: repoData.default_branch || 'main',
+                linkedAt: Date.now()
+            };
+
+            await updateDoc(doc(db, 'tasks', tid), {
+                github: task.github
+            });
+
+            state.ui.githubLinkTaskId = null;
+            Render();
+        } catch (err) {
+            console.error('绑定 GitHub 仓库失败:', err);
+            alert(`绑定 GitHub 仓库失败：${err.message || '请稍后重试'}`);
+        }
+    },
+    disconnectGithubLink: async (tid) => {
+        const { db, doc, updateDoc } = window.fb;
+        const task = state.tasks.find(t => t.id === tid);
+        if (!task) return;
+        task.github = null;
+        try {
+            await updateDoc(doc(db, 'tasks', tid), {
+                github: null
+            });
+        } catch (err) {
+            console.error('断开 GitHub 仓库失败:', err);
+            alert('断开 GitHub 仓库失败，请稍后重试');
+            return;
+        }
+        state.ui.githubLinkTaskId = null;
+        Render();
+    },
+    getGithubArchiveUrl: (owner, repo, ref) => {
+        return `https://codeload.github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/zip/${encodeURIComponent(ref)}`;
+    },
+    fetchGithubLatestCommit: async (githubLink) => {
+        const owner = githubLink?.owner;
+        const repo = githubLink?.repo;
+        const branch = githubLink?.branch || 'main';
+        if (!owner || !repo) {
+            throw new Error('GitHub 仓库信息不完整');
+        }
+
+        const resp = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(branch)}`, {
+            headers: { 'Accept': 'application/vnd.github+json' }
+        });
+        if (!resp.ok) {
+            throw new Error('无法读取 GitHub 最新提交，请确认仓库仍然公开可访问');
+        }
+        const commitData = await resp.json();
+        return {
+            sha: commitData.sha,
+            message: (commitData.commit?.message || '').split('\n')[0],
+            committedAt: commitData.commit?.author?.date || new Date().toISOString(),
+            htmlUrl: commitData.html_url || '',
+            archiveUrl: Actions.getGithubArchiveUrl(owner, repo, commitData.sha),
+            branch
+        };
+    },
+    recordGithubVersion: async (tid) => {
+        const { db, doc, updateDoc } = window.fb;
+        const t = state.tasks.find(task => task.id === tid);
+        if (!t?.github?.enabled) {
+            alert('当前任务还没有链接 GitHub 仓库');
+            return;
+        }
+
+        let note = '';
+        const noteInput = document.getElementById(`upload-comment-${tid}`);
+        if (noteInput) {
+            note = noteInput.value.trim();
+        }
+
+        state.ui.isUploading = true;
+        Render();
+
+        try {
+            const latestCommit = await Actions.fetchGithubLatestCommit(t.github);
+            const now = Date.now();
+            const nextVer = (t.file?.version || 0) + 1;
+            const duration = t.lockedAt ? now - t.lockedAt : 0;
+            const shortSha = String(latestCommit.sha || '').slice(0, 7);
+            const branchLabel = `${latestCommit.branch} 分支`;
+
+            if (t.lockedAt) {
+                t.activities.unshift({
+                    type: 'upload',
+                    source: 'github',
+                    provider: 'github',
+                    userId: state.currentUser.uid,
+                    timestamp: latestCommit.committedAt || now,
+                    duration,
+                    version: nextVer,
+                    size: branchLabel,
+                    downloadURL: latestCommit.archiveUrl,
+                    note,
+                    commitSha: latestCommit.sha,
+                    commitMessage: latestCommit.message,
+                    commitUrl: latestCommit.htmlUrl,
+                    repoUrl: t.github.repoUrl,
+                    owner: t.github.owner,
+                    repo: t.github.repo,
+                    branch: latestCommit.branch
+                });
+            }
+
+            t.file = {
+                name: `${t.github.repo}-${shortSha || `v${nextVer}`}.zip`,
+                size: branchLabel,
+                lastUpdated: latestCommit.committedAt || new Date(now).toISOString(),
+                version: nextVer,
+                downloadURL: latestCommit.archiveUrl,
+                note,
+                source: 'github',
+                provider: 'github',
+                commitSha: latestCommit.sha,
+                commitMessage: latestCommit.message,
+                commitUrl: latestCommit.htmlUrl,
+                repoUrl: t.github.repoUrl,
+                owner: t.github.owner,
+                repo: t.github.repo,
+                branch: latestCommit.branch
+            };
+            t.isLocked = false;
+            t.lockedBy = null;
+            t.lockedAt = null;
+
+            await updateDoc(doc(db, 'tasks', tid), {
+                file: t.file,
+                activities: t.activities,
+                isLocked: false,
+                lockedBy: null,
+                lockedAt: null
+            });
+
+            state.ui.isUploading = false;
+            state.ui.actionModalTaskId = null;
+            Render();
+        } catch (err) {
+            console.error('记录 GitHub 版本失败:', err);
+            state.ui.isUploading = false;
+            alert(`记录 GitHub 版本失败：${err.message || '请稍后重试'}`);
+            Render();
+        }
+    },
 
     // Locking & Uploading
     startTask: async (tid, version) => {
@@ -807,10 +1017,14 @@ const Actions = {
 
         let downloadURL = null;
         let storagePath = null;
+        let githubMeta = null;
 
         if (Number(t.file.version) === targetVer) {
             downloadURL = t.file.downloadURL;
             storagePath = t.file.path;
+            if (t.file.source === 'github') {
+                githubMeta = t.file;
+            }
         } else if (t.activities && t.activities.length) {
             const act = t.activities.find(a =>
                 a.type === 'upload' &&
@@ -819,17 +1033,44 @@ const Actions = {
             if (act) {
                 downloadURL = act.downloadURL;
                 storagePath = act.path;
+                if (act.source === 'github') {
+                    githubMeta = act;
+                }
             }
         }
 
-        if (!downloadURL && !storagePath) {
+        if (!downloadURL && !storagePath && !githubMeta) {
             alert('当前版本没有可下载的文件（可能是旧数据未记录下载地址）');
             return;
         }
 
-        const fileName = (t.file && t.file.name) ? t.file.name : `task_${tid}_v${targetVer}`;
+        const fileName = githubMeta
+            ? `${githubMeta.repo || t.github?.repo || `task_${tid}`}-${String(githubMeta.commitSha || '').slice(0, 7) || `v${targetVer}`}.zip`
+            : ((t.file && t.file.name) ? t.file.name : `task_${tid}_v${targetVer}`);
 
         try {
+            if (githubMeta) {
+                const url = githubMeta.downloadURL || Actions.getGithubArchiveUrl(
+                    githubMeta.owner || t.github?.owner,
+                    githubMeta.repo || t.github?.repo,
+                    githubMeta.commitSha
+                );
+                if (!url) {
+                    alert('无法获取 GitHub 下载链接');
+                    return;
+                }
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                return;
+            }
+
             // 如果没有 downloadURL，从 storage path 重新获取
             let url = downloadURL;
             if (!url && storagePath) {
@@ -875,7 +1116,14 @@ const Actions = {
             alert('下载文件失败: ' + error.message);
         }
     },
-    triggerUploadInModal: (tid) => { document.getElementById(`modal-file-upload-${tid}`)?.click(); },
+    triggerUploadInModal: (tid) => {
+        const t = state.tasks.find(task => task.id === tid);
+        if (t?.github?.enabled) {
+            Actions.recordGithubVersion(tid);
+            return;
+        }
+        document.getElementById(`modal-file-upload-${tid}`)?.click();
+    },
     triggerInitialUpload: (tid) => {
         const t = state.tasks.find(t => t.id === tid);
         if (t && t.kind === 'file' && !isUserActivated()) {
@@ -1807,6 +2055,15 @@ const Actions = {
         if (!editor) return;
         await Actions.handleTodoImageFiles(files, tid, editor);
     },
+    triggerTodoImageInput: (tid) => {
+        document.getElementById(`todo-image-input-${tid}`)?.click();
+    },
+    handleTodoImageInputChange: async (tid, inputEl) => {
+        const editor = document.getElementById('todo-editor');
+        if (!editor || !inputEl?.files?.length) return;
+        await Actions.handleTodoImageFiles(inputEl.files, tid, editor);
+        inputEl.value = '';
+    },
     updateEditorDraft: (tid, html) => {
         state.ui.editorTaskId = tid;
         state.ui.editorContent = html || '';
@@ -1887,6 +2144,7 @@ const Actions = {
         state.ui.editorPriority = todo.priority || 'none';
         state.ui.todoPriorityMenuOpen = false;
         state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null };
+        state.ui.todoScrollTarget = { type: 'editor', taskId: tid };
         Actions.closeMentionPicker();
         Render();
     },
@@ -1898,6 +2156,7 @@ const Actions = {
         state.ui.editorPriority = 'none';
         state.ui.todoPriorityMenuOpen = false;
         state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null };
+        state.ui.todoScrollTarget = null;
         Actions.closeMentionPicker();
         Render();
     },
@@ -1929,6 +2188,7 @@ const Actions = {
         }
         if (todo) { todo.text = editor.innerHTML; todo.images = nextImages; todo.priority = state.ui.editorPriority || 'none'; }
         if (todo && window.queueTodoAnimation) window.queueTodoAnimation(tid, todo.id);
+        if (todo) state.ui.todoScrollTarget = { type: 'todo', taskId: tid, todoId: todo.id };
         state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; state.ui.editorPriority = 'none'; state.ui.todoPriorityMenuOpen = false; state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null }; Actions.clearEditorImages();
         Actions.closeMentionPicker();
         try {
@@ -1974,6 +2234,7 @@ const Actions = {
             createdAt: Date.now()
         });
         if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
+        state.ui.todoScrollTarget = { type: 'todo', taskId: tid, todoId: newTodoId };
         state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; state.ui.editorPriority = 'none'; state.ui.todoPriorityMenuOpen = false; state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null }; Actions.clearEditorImages();
         Actions.closeMentionPicker();
         try {

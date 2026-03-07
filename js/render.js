@@ -77,6 +77,7 @@ function renderTodoActions(taskId, todo) {
     const priority = getTodoPriorityValue(todo);
     const priorityMeta = getTodoPriorityMeta(priority);
     const priorityTarget = state.ui.todoPriorityMenuTarget || {};
+    const isMobile = !!state.ui.isMobile;
     const priorityMenuOpen = state.ui.todoPriorityMenuOpen
         && priorityTarget.mode === 'todo'
         && priorityTarget.taskId === taskId
@@ -85,7 +86,7 @@ function renderTodoActions(taskId, todo) {
         ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
         : '';
     return `
-        <div class="flex items-center ${priorityMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity ml-2 gap-1">
+        <div class="flex items-center ${isMobile ? 'opacity-100 mt-1.5 justify-end' : `${priorityMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} ml-2`} transition-opacity gap-1">
             <div class="relative">
                 <button onclick="event.stopPropagation(); window.dispatch('toggleTodoPriorityMenu', 'todo', '${taskId}', '${todo.id}')" 
                     class="p-1.5 rounded transition-colors ${priorityButtonClass}" title="${priorityMeta.label}"
@@ -112,21 +113,23 @@ function renderTodoActions(taskId, todo) {
 
 function renderTodoItem(taskId, todo, opts = {}) {
     const { completed = false, grouped = false, animated = false, editing = false } = opts;
+    const isMobile = !!state.ui.isMobile;
     const wrapperClass = grouped
-        ? `todo-priority-item group ${completed ? 'todo-priority-item-completed' : ''} ${editing ? 'ring-2 ring-blue-100 bg-blue-50 rounded-xl' : ''}`
-        : `flex items-start group p-3 rounded-lg transition-colors relative ${completed ? 'opacity-60 hover:opacity-100' : 'hover:bg-gray-50 border border-transparent hover:border-gray-100'} ${editing ? 'ring-2 ring-blue-100 bg-blue-50' : ''}`;
+        ? `todo-priority-item group ${isMobile ? 'todo-priority-item-mobile' : ''} ${completed ? 'todo-priority-item-completed' : ''} ${editing ? 'ring-2 ring-blue-100 bg-blue-50 rounded-xl' : ''}`
+        : `flex items-start group ${isMobile ? 'px-4 py-1.5' : 'p-3'} rounded-lg transition-colors relative ${completed ? 'opacity-60 hover:opacity-100' : 'hover:bg-gray-50 border border-transparent hover:border-gray-100'} ${editing ? 'ring-2 ring-blue-100 bg-blue-50' : ''}`;
     const iconHtml = completed
         ? `<div onclick="window.dispatch('toggleTodo', '${taskId}', '${todo.id}')" class="mt-0.5 mr-3 text-green-500 cursor-pointer">${Icon('check-circle-2', '', 20)}</div>`
         : `<div onclick="window.dispatch('toggleTodo', '${taskId}', '${todo.id}')" class="mt-0.5 mr-3 text-gray-300 group-hover:text-indigo-500 transition-colors cursor-pointer">${Icon('circle', '', 20)}</div>`;
     const textClass = completed ? 'text-sm text-gray-400 line-through' : 'text-sm text-gray-700 font-medium';
     return `
-        <div class="${wrapperClass}">
+        <div id="todo-item-${taskId}-${todo.id}" class="${wrapperClass}">
             ${iconHtml}
             <div class="flex-1 min-w-0 pt-0.5">
                 <div class="${textClass} break-words whitespace-normal leading-relaxed ${animated ? 'todo-text-enter' : ''}">${todo.text}</div>
                 ${renderTodoImages(todo.images)}
+                ${isMobile ? renderTodoActions(taskId, todo) : ''}
             </div>
-            ${renderTodoActions(taskId, todo)}
+            ${isMobile ? '' : renderTodoActions(taskId, todo)}
         </div>
     `;
 }
@@ -155,10 +158,15 @@ function renderTodoGroups(taskId, todos, opts = {}) {
     }).join('');
 }
 
-function RenderSidebar() {
+function RenderSidebar(options = {}) {
+    const { mobile = false } = options;
     const { projects, expandedProjects, activeView } = state;
     const sidebarWidth = Math.max(240, Math.min(460, state.ui.sidebarWidth || 280));
-    const resizeHandle = `<div onmousedown="window.dispatch('startSidebarResize', event)" class="absolute top-0 -right-1 w-2 h-full cursor-col-resize z-20" title="拖拽调整宽度"></div>`;
+    const resizeHandle = mobile ? '' : `<div onmousedown="window.dispatch('startSidebarResize', event)" class="absolute top-0 -right-1 w-2 h-full cursor-col-resize z-20" title="拖拽调整宽度"></div>`;
+    const sidebarShellClass = mobile
+        ? 'relative bg-[#f3f4f6] flex flex-col h-full w-full text-gray-700'
+        : 'relative bg-[#f3f4f6] flex flex-col h-full text-gray-700 flex-shrink-0 border-r border-gray-200';
+    const sidebarShellStyle = mobile ? '' : `style="width:${sidebarWidth}px;"`;
 
     // 个人项目排序和置顶
     const uid = state.currentUser?.uid;
@@ -269,7 +277,9 @@ function RenderSidebar() {
                         const maxVer = progressActs.reduce((m, a) => Math.max(m, a.version || 0), 0);
                         versionLabel = maxVer > 0 ? `v${maxVer}` : '未开始';
                     } else {
-                        versionLabel = t.file && t.file.version > 0 ? `v${t.file.version}` : '未上传';
+                        versionLabel = t.file && t.file.version > 0
+                            ? `v${t.file.version}`
+                            : (t.github?.enabled ? '未记录' : '未上传');
                     }
 
                     const durationStr = locker ? getDuration(t.lockedAt) : '00:00';
@@ -346,14 +356,14 @@ function RenderSidebar() {
     if (state.authStatus === 'loading') {
         // 加载期间占位，避免先闪出“未登录”界面
         return `
-            <div class="relative bg-[#f3f4f6] flex flex-col h-full flex-shrink-0 border-r border-gray-200" style="width:${sidebarWidth}px;" id="sidebar-scroll" data-scroll>
+            <div class="${mobile ? 'relative bg-[#f3f4f6] flex flex-col h-full w-full' : 'relative bg-[#f3f4f6] flex flex-col h-full flex-shrink-0 border-r border-gray-200'}" ${mobile ? '' : `style="width:${sidebarWidth}px;"`} id="sidebar-scroll" data-scroll>
                 ${resizeHandle}
             </div>
         `;
     }
     if (state.authStatus !== 'authenticated' || !u) {
         return `
-            <div class="relative bg-[#f3f4f6] flex flex-col h-full text-gray-700 flex-shrink-0 border-r border-gray-200" style="width:${sidebarWidth}px;" id="sidebar-scroll" data-scroll>
+            <div class="${mobile ? 'relative bg-[#f3f4f6] flex flex-col h-full w-full text-gray-700' : 'relative bg-[#f3f4f6] flex flex-col h-full text-gray-700 flex-shrink-0 border-r border-gray-200'}" ${mobile ? '' : `style="width:${sidebarWidth}px;"`} id="sidebar-scroll" data-scroll>
                 <div class="h-14 flex items-center px-4 border-b border-gray-200 font-bold text-gray-800 bg-[#f3f4f6]">
                     <span class="truncate text-lg tracking-tight">CollabSync</span>
                 </div>
@@ -372,7 +382,7 @@ function RenderSidebar() {
         `;
     }
     return `
-        <div class="relative bg-[#f3f4f6] flex flex-col h-full text-gray-700 flex-shrink-0 border-r border-gray-200" style="width:${sidebarWidth}px;" id="sidebar-scroll" data-scroll>
+        <div class="${sidebarShellClass}" ${sidebarShellStyle} id="sidebar-scroll" data-scroll>
             <div class="h-14 flex items-center px-4 border-b border-gray-200 font-bold text-gray-800 bg-[#f3f4f6]">
                 <span class="truncate text-lg tracking-tight">CollabSync</span>
             </div>
@@ -402,6 +412,20 @@ function RenderSidebar() {
                 </div>
             </div>
             ${resizeHandle}
+        </div>
+    `;
+}
+
+function RenderMobileMainShell() {
+    return `
+        <div class="relative w-full h-full">
+            ${RenderMain()}
+            ${state.activeView?.type !== 'welcome' ? `
+                <button onclick="window.dispatch('goMobileSidebar')"
+                    class="fixed top-4 left-4 z-[85] inline-flex items-center gap-1 px-1 py-1 text-sm font-semibold text-gray-600 hover:text-gray-900 active:scale-95 transition-all">
+                    ${Icon('chevron-left', '', 16)} 项目列表
+                </button>
+            ` : ''}
         </div>
     `;
 }
@@ -684,7 +708,7 @@ function RenderMain() {
         const statusColor = isMe ? COLOR_ME : COLOR_OTHER;
         const statusBg = isMe ? BG_ME : BG_OTHER;
         const activeTodos = sortTodosByPriorityAndTime(t.todos.filter(x => !x.completed));
-        const completedTodos = sortTodosByPriorityAndTime(t.todos.filter(x => x.completed));
+        const completedTodos = [...t.todos.filter(x => x.completed)].sort((a, b) => (b.completedAt || b.createdAt || 0) - (a.completedAt || a.createdAt || 0));
         const collapseThresholdMs = 2 * 24 * 60 * 60 * 1000;
         const now = Date.now();
         const oldCompletedCandidates = completedTodos.filter(td => {
@@ -722,50 +746,76 @@ function RenderMain() {
         const editorPriorityMenuOpen = state.ui.todoPriorityMenuOpen
             && priorityTarget.mode === 'editor'
             && priorityTarget.taskId === t.id;
+        const isMobile = !!state.ui.isMobile;
+        const githubLink = t.github?.enabled ? t.github : null;
 
         return `
             <div class="flex-1 flex flex-col h-full bg-[#f3f4f6]" id="main-scroll" data-scroll>
                 ${state.ui.todoPriorityMenuOpen ? `<div class="fixed inset-0 z-[65]" onclick="window.dispatch('closeTodoPriorityMenu')"></div>` : ''}
-                 <div class="px-6 py-5 border-b flex justify-between items-center bg-white z-10 shadow-sm sticky top-0">
-                    <div>
-                        <div class="flex items-center gap-3">
-                            <h1 class="text-2xl font-bold flex items-center text-gray-800">
-                                ${t.isLocked ? Icon('lock', 'mr-3 text-gray-400', 20) : ''}
-                                ${t.name}
-                            </h1>
-                            <button onclick="window.dispatch('openEditTaskModal', '${t.id}')" class="px-2 py-1 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 flex items-center gap-1">
-                                ${Icon('edit-3', '', 14)} 编辑任务
-                            </button>
+                 <div class="${isMobile ? 'px-4 pt-16 pb-4 bg-white border-b shadow-sm' : 'px-6 py-5 border-b flex justify-between items-center bg-white z-10 shadow-sm sticky top-0'}">
+                    ${isMobile ? `
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0 flex-1">
+                                <h1 class="text-[28px] leading-tight font-bold text-gray-800 break-words">${t.name}</h1>
+                                ${(t.kind === 'file') ? `
+                                    <button onclick="window.dispatch('openGithubLinkModal', '${t.id}')" class="mt-2 inline-flex items-center gap-1 text-xs font-semibold ${githubLink ? 'text-blue-700' : 'text-gray-500'}">
+                                        ${Icon('github', '', 14)} ${githubLink ? '已链接 GitHub' : '链接 GitHub 仓库'}
+                                    </button>
+                                ` : ''}
+                            </div>
+                            <div class="shrink-0">
+                                ${t.isLocked ? `
+                                    <div class="px-3 py-2 rounded-full text-xs font-semibold border ${isMe ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-purple-50 text-purple-700 border-purple-200'}">
+                                        ${locker ? `${locker.name} 编辑中` : '编辑中'}
+                                    </div>
+                                ` : `
+                                    <div class="px-3 py-2 rounded-full text-xs font-semibold border border-gray-200 bg-gray-50 text-gray-500">
+                                        空闲中
+                                    </div>
+                                `}
+                            </div>
                         </div>
-                        <p class="text-gray-500 mt-1 text-sm">${t.description}</p>
-                    </div>
-                    <div class="flex items-center space-x-4">
-                        ${t.isLocked ? `
-                            <div class="flex items-center pr-5">
-                                <div class="p-1 cursor-pointer" onclick="window.dispatch('openMemberModal', '${t.projectId}')">
-                                    ${AvatarEmoji(locker.emoji, 'w-10 h-10 rounded-full bg-white', 'text-3xl')}
-                                </div>
-                                <div class="ml-2 flex flex-col justify-center">
-                                    <span class="text-[10px] text-gray-400 font-medium leading-none mb-1">正在编辑</span>
-                                    <span class="font-bold text-sm leading-none" style="color:${statusColor}">${locker.name}</span>
-                                </div>
-                                <div class="h-8 w-px bg-gray-200 mx-4"></div>
-                                <div class="flex flex-col items-end justify-center">
-                                     <span class="text-[10px] text-gray-400 font-medium leading-none mb-1">耗时</span>
-                                     <span class="text-xl font-mono font-bold text-gray-800 leading-none timer-display" data-ts="${t.lockedAt}">${durationStr}</span>
-                                </div>
+                    ` : `
+                        <div>
+                            <div class="flex items-center gap-3">
+                                <h1 class="text-2xl font-bold flex items-center text-gray-800">
+                                    ${t.isLocked ? Icon('lock', 'mr-3 text-gray-400', 20) : ''}
+                                    ${t.name}
+                                </h1>
+                                <button onclick="window.dispatch('openEditTaskModal', '${t.id}')" class="px-2 py-1 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 flex items-center gap-1">
+                                    ${Icon('edit-3', '', 14)} 编辑任务
+                                </button>
                             </div>
-                        ` : `
-                            <div class="px-4 py-2 rounded-full bg-gray-50 text-gray-500 font-medium text-sm border border-gray-200 flex items-center">
-                                ${t.completed ? `<div class=\"w-2 h-2 rounded-full bg-gray-400 mr-2\"></div>任务已完成` : `<div class=\"w-2 h-2 rounded-full bg-green-500 mr-2\"></div>空闲可编辑`}
-                            </div>
-                        `}
-                    </div>
+                            <p class="text-gray-500 mt-1 text-sm">${t.description}</p>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            ${t.isLocked ? `
+                                <div class="flex items-center pr-5">
+                                    <div class="p-1 cursor-pointer" onclick="window.dispatch('openMemberModal', '${t.projectId}')">
+                                        ${AvatarEmoji(locker.emoji, 'w-10 h-10 rounded-full bg-white', 'text-3xl')}
+                                    </div>
+                                    <div class="ml-2 flex flex-col justify-center">
+                                        <span class="text-[10px] text-gray-400 font-medium leading-none mb-1">正在编辑</span>
+                                        <span class="font-bold text-sm leading-none" style="color:${statusColor}">${locker.name}</span>
+                                    </div>
+                                    <div class="h-8 w-px bg-gray-200 mx-4"></div>
+                                    <div class="flex flex-col items-end justify-center">
+                                         <span class="text-[10px] text-gray-400 font-medium leading-none mb-1">耗时</span>
+                                         <span class="text-xl font-mono font-bold text-gray-800 leading-none timer-display" data-ts="${t.lockedAt}">${durationStr}</span>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div class="px-4 py-2 rounded-full bg-gray-50 text-gray-500 font-medium text-sm border border-gray-200 flex items-center">
+                                    ${t.completed ? `<div class=\"w-2 h-2 rounded-full bg-gray-400 mr-2\"></div>任务已完成` : `<div class=\"w-2 h-2 rounded-full bg-green-500 mr-2\"></div>空闲可编辑`}
+                                </div>
+                            `}
+                        </div>
+                    `}
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-6 transition-colors duration-500 todo-list-container" style="background-color:${t.isLocked ? statusBg : '#f3f4f6'}">
-                    <div class="max-w-4xl mx-auto space-y-8">
-                        ${t.kind === 'text' ? `
+                <div class="flex-1 overflow-y-auto ${isMobile ? 'px-0 pb-6 pt-4' : 'p-6'} transition-colors duration-500 todo-list-container" style="background-color:${t.isLocked ? statusBg : '#f3f4f6'}">
+                    <div class="${isMobile ? 'w-full space-y-5' : 'max-w-4xl mx-auto space-y-8'}">
+                        ${isMobile ? '' : (t.kind === 'text' ? `
                         <!-- Text Task: Compact Header -->
                         <div class="p-4 rounded-2xl border-2 border-dashed transition-all bg-white shadow-sm"
                              style="border-color: ${t.isLocked ? statusColor : '#cbd5e1'}">
@@ -801,7 +851,11 @@ function RenderMain() {
                             </div>
                             
                             <h3 class="text-xl font-bold text-gray-800 mb-1">${t.file?.version > 0 ? t.file.name : "暂无文件"}</h3>
-                            <p class="text-sm text-gray-500 font-medium">${t.file?.version > 0 ? `v${t.file.version} • ${t.file.size} • ${new Date(t.file.lastUpdated).toLocaleDateString()}` : "尚未上传文件"}</p>
+                            <p class="text-sm text-gray-500 font-medium">
+                                ${t.file?.version > 0
+            ? `v${t.file.version}${t.file?.source === 'github' ? ' <span class="ml-1 text-[11px] font-semibold text-blue-600">GitHub</span>' : ''} • ${t.file.size} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`
+            : (githubLink ? '尚未记录 GitHub 版本' : '尚未上传文件')}
+                            </p>
                             ${t.file?.note ? `<p class="mt-1 text-xs text-gray-500 max-w-xl text-center">备注：${t.file.note}</p>` : ''}
                             <div class="h-4"></div>
                             
@@ -814,7 +868,17 @@ function RenderMain() {
                                     class="flex items-center px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-900 shadow-sm transition-all text-sm font-medium">
                                     ${Icon('file-clock', 'mr-2', 16)} 查看编辑记录
                                 </button>
+                                <button onclick="window.dispatch('openGithubLinkModal', '${t.id}')" 
+                                    class="flex items-center px-4 py-2 rounded-lg bg-white border ${githubLink ? 'border-blue-200 text-blue-700 hover:bg-blue-50' : 'border-blue-200 text-blue-700 hover:bg-blue-50'} shadow-sm transition-all text-sm font-medium">
+                                    ${Icon('github', 'mr-2', 16)} ${githubLink ? '已链接 GitHub' : '链接 GitHub'}
+                                </button>
                             </div>
+                            ${githubLink ? `
+                                <a href="${githubLink.repoUrl}" target="_blank" rel="noopener noreferrer"
+                                   class="mb-4 inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors">
+                                    ${Icon('link-2', 'mr-2', 14)} ${githubLink.owner}/${githubLink.repo}
+                                </a>
+                            ` : ''}
                             
                             ${t.isLocked && locker ? `
                                 <div class="flex items-center px-4 py-1.5 rounded-lg text-sm font-medium animate-pulse
@@ -847,14 +911,14 @@ function RenderMain() {
                                 ` : ''}
                             </div>
                         </div>
-                        `}
+                        `)}
 
-                        <div class="bg-white rounded-xl shadow-sm border p-6">
-                            <div class="flex justify-between items-center mb-6">
-                                 <h3 class="text-lg font-bold text-gray-800 flex items-center">${Icon('check-circle-2', 'mr-2 text-indigo-500', 20)} 待办事项 <span class="ml-2 text-sm text-gray-400 font-semibold">(${completedTodos.length}/${t.todos.length})</span></h3>
+                        <div class="${isMobile ? '' : 'bg-white rounded-xl shadow-sm border p-6'}">
+                            <div class="flex justify-between items-center ${isMobile ? 'mb-4' : 'mb-6'}">
+                                 <h3 class="text-lg font-bold text-gray-800 flex items-center ${isMobile ? 'px-4' : ''}">${Icon('check-circle-2', 'mr-2 text-indigo-500', 20)} 待办事项 <span class="ml-2 text-sm text-gray-400 font-semibold">(${completedTodos.length}/${t.todos.length})</span></h3>
                             </div>
                             
-                            <div class="mb-6 border rounded-xl overflow-visible shadow-sm focus-within:ring-2 ring-indigo-500 transition-all bg-white relative">
+                            <div id="todo-editor-panel-${t.id}" class="mb-6 border rounded-xl overflow-visible shadow-sm focus-within:ring-2 ring-indigo-500 transition-all bg-white relative ${isMobile ? 'mx-4' : ''}">
                                 <div class="flex items-center gap-1 p-2 border-b bg-gray-50 text-gray-600 rounded-t-xl relative">
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'bold')" class="p-1.5 hover:bg-gray-200 rounded text-xs font-bold w-8" title="加粗">B</button>
                                     <div class="w-px h-4 bg-gray-300 mx-1"></div>
@@ -868,12 +932,18 @@ function RenderMain() {
                                         </button>
                                         ${editorPriorityMenuOpen ? renderPriorityMenu(editorPriority, (priority) => `window.dispatch('setTodoEditorPriority', '${priority}', '${t.id}')`) : ''}
                                     </div>
+                                    ${isMobile ? `
+                                        <button onmousedown="event.preventDefault()" onclick="window.dispatch('triggerTodoImageInput', '${t.id}')" class="w-8 h-8 inline-flex items-center justify-center rounded transition-colors hover:bg-gray-100 text-gray-500 ml-1" title="添加图片">
+                                            ${Icon('image-plus', '', 14)}
+                                        </button>
+                                        <input type="file" id="todo-image-input-${t.id}" class="hidden" accept="image/*" multiple onchange="window.dispatch('handleTodoImageInputChange', '${t.id}', this)">
+                                    ` : ''}
                                     <button onmousedown="event.preventDefault()" onclick="window.dispatch('execCmd', 'removeFormat')" class="ml-auto p-1.5 hover:bg-gray-200 rounded text-xs" title="清除格式">${Icon('eraser', '', 14)}</button>
                                 </div>
                                 <div class="relative">
                                     <div id="todo-editor" contenteditable="${t.completed ? 'false' : 'true'}" 
                                          class="p-4 min-h-[100px] outline-none text-sm text-gray-800 rich-editor ${t.completed ? 'bg-gray-50' : ''}" 
-                                         placeholder="${t.completed ? '已完成任务不可编辑' : '在这里添加新的待办（可直接粘贴或拖入图片）'}"
+                                         placeholder="${t.completed ? '已完成任务不可编辑' : (isMobile ? '在这里添加新的待办（可点图片按钮从相册添加）' : '在这里添加新的待办（可直接粘贴或拖入图片）')}"
                                          oninput="window.dispatch('updateEditorDraft', '${t.id}', this.innerHTML)"
                                          onpaste="window.dispatch('handleTodoPaste', event, '${t.id}')"
                                          ondragover="window.dispatch('handleTodoDragOver', event)"
@@ -895,7 +965,7 @@ function RenderMain() {
                                         </div>
                                     ` : ''}
                                 </div>
-                                <div class="p-2 flex items-center justify-between gap-3 bg-white border-t border-gray-50 rounded-b-xl">
+                                <div class="p-2 ${isMobile ? 'space-y-3' : 'flex items-center justify-between gap-3'} bg-white border-t border-gray-50 rounded-b-xl">
                                     <div class="flex flex-wrap gap-2 items-center flex-1 min-w-0">
                                         ${(state.ui.editorImages || []).map((img, idx) => {
             const previewUrl = (typeof img === 'object' && img) ? (img.previewUrl || img.url || '') : String(img || '');
@@ -907,8 +977,8 @@ function RenderMain() {
                                                </div>`;
         }).join('')}
                                     </div>
-                                    <div class="flex items-center justify-end gap-2 shrink-0">
-                                        <span class="text-[11px] text-gray-400 select-none">Ctrl/⌘ + Enter</span>
+                                    <div class="flex items-center ${isMobile ? 'justify-end' : 'justify-end'} gap-2 shrink-0">
+                                        ${isMobile ? '' : '<span class="text-[11px] text-gray-400 select-none">Ctrl/⌘ + Enter</span>'}
                                         ${state.ui.todoSubmitUploading ? `
                                             <div class="todo-uploading-hint">
                                                 上传中<span class="uploading-dots"><i>.</i><i>.</i><i>.</i></span>
@@ -934,7 +1004,7 @@ function RenderMain() {
                                 </div>
                             </div>
 
-                            <div class="space-y-2">
+                            <div class="space-y-2 ${isMobile ? 'px-0' : ''}">
                                 ${renderTodoGroups(t.id, activeTodos, { todoAnimKeys, editingTodoId: state.ui.editingTodoId })}
                                 ${(activeTodos.length && (recentCompletedTodos.length || defaultVisibleOldCompletedTodos.length || hiddenOldCompletedTodos.length)) ? '<div class="h-px bg-gray-100 my-4 mx-2"></div>' : ''}
                                 ${renderTodoGroups(t.id, recentCompletedTodos, { completed: true, todoAnimKeys, editingTodoId: state.ui.editingTodoId })}

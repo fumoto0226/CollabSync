@@ -37,6 +37,7 @@ let state = {
         historyModalTaskId: null,
         startModalTaskId: null,
         editHistoryModalTaskId: null,
+        githubLinkTaskId: null,
         editProjectId: null,
         editTaskId: null,
         profileModalOpen: false,
@@ -73,11 +74,14 @@ let state = {
         todoAnimKeys: {},
         collapsedCompletedByTaskId: {},
         todoSubmitUploading: false,
+        todoScrollTarget: null,
         isUploading: false,
         aiLoading: false,
         projectSummary: '',
         memberListExpandedByProjectId: {},
         myWorkPopoverOpen: false,
+        isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+        mobilePane: 'sidebar',
         sidebarWidth: (() => {
             try {
                 const v = parseInt(localStorage.getItem('cs_sidebar_width') || '', 10);

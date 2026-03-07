@@ -249,7 +249,22 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
 }
 
 .todo-priority-group-completed {
-    opacity: 0.72;
+    opacity: 1;
+}
+
+.todo-priority-group-completed.todo-priority-group-high {
+    --priority-stroke: rgba(239, 68, 68, 0.2);
+    --priority-bg: rgba(239, 68, 68, 0.04);
+}
+
+.todo-priority-group-completed.todo-priority-group-medium {
+    --priority-stroke: rgba(245, 158, 11, 0.22);
+    --priority-bg: rgba(245, 158, 11, 0.045);
+}
+
+.todo-priority-group-completed.todo-priority-group-low {
+    --priority-stroke: rgba(59, 130, 246, 0.2);
+    --priority-bg: rgba(59, 130, 246, 0.04);
 }
 
 .todo-priority-item {
@@ -270,4 +285,9 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
 
 .todo-priority-item-completed:hover {
     opacity: 1;
+}
+
+.todo-priority-item-mobile {
+    padding-top: 7px;
+    padding-bottom: 5px;
 }
