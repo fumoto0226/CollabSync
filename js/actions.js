@@ -925,7 +925,7 @@ const Actions = {
             }
 
             t.file = {
-                name: `${t.github.repo}-${shortSha || `v${nextVer}`}.zip`,
+                name: 'GitHub 仓库快照',
                 size: branchLabel,
                 lastUpdated: latestCommit.committedAt || new Date(now).toISOString(),
                 version: nextVer,

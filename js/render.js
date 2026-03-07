@@ -850,10 +850,16 @@ function RenderMain() {
                                 ${Icon('file-text', '', 72, 'none', '#94a3b8')}
                             </div>
                             
-                            <h3 class="text-xl font-bold text-gray-800 mb-1">${t.file?.version > 0 ? t.file.name : "暂无文件"}</h3>
+                            <h3 class="text-xl font-bold text-gray-800 mb-1">
+                                ${t.file?.version > 0
+            ? (t.file?.source === 'github' ? 'GitHub 仓库快照' : t.file.name)
+            : "暂无文件"}
+                            </h3>
                             <p class="text-sm text-gray-500 font-medium">
                                 ${t.file?.version > 0
-            ? `v${t.file.version}${t.file?.source === 'github' ? ' <span class="ml-1 text-[11px] font-semibold text-blue-600">GitHub</span>' : ''} • ${t.file.size} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`
+            ? (t.file?.source === 'github'
+                ? `v${t.file.version} <span class="ml-1 text-[11px] font-semibold text-blue-600">GitHub</span> • ${t.file.branch || 'main'} 分支 • commit ${String(t.file.commitSha || '').slice(0, 7)} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`
+                : `v${t.file.version} • ${t.file.size} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`)
             : (githubLink ? '尚未记录 GitHub 版本' : '尚未上传文件')}
                             </p>
                             ${t.file?.note ? `<p class="mt-1 text-xs text-gray-500 max-w-xl text-center">备注：${t.file.note}</p>` : ''}

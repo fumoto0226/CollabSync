@@ -309,7 +309,9 @@ function RenderModals() {
                 ts: t.file.lastUpdated,
                 note: t.file.note || '',
                 isLatest: true,
-                source: t.file.source || 'storage'
+                source: t.file.source || 'storage',
+                branch: t.file.branch || '',
+                commitSha: t.file.commitSha || ''
             });
         }
         (t?.activities || []).forEach(act => {
@@ -320,7 +322,9 @@ function RenderModals() {
                     ts: act.timestamp,
                     note: act.note || '',
                     isLatest: false,
-                    source: act.source || 'storage'
+                    source: act.source || 'storage',
+                    branch: act.branch || '',
+                    commitSha: act.commitSha || ''
                 });
             }
         });
@@ -333,7 +337,7 @@ function RenderModals() {
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
                         <div>
                             <h3 class="text-xl font-bold text-gray-800">开始占用</h3>
-                            <p class="text-sm text-gray-500 mt-1 font-mono">${t?.file?.name || 'File'}</p>
+                            <p class="text-sm text-gray-500 mt-1 font-mono">${t?.file?.source === 'github' ? 'GitHub 仓库快照' : (t?.file?.name || 'File')}</p>
                         </div>
                         <button onclick="window.dispatch('closeStartModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
                     </div>
@@ -369,14 +373,16 @@ function RenderModals() {
                                                 ${v.isLatest ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
-                                                <span>${formatDate(v.ts)}</span> • <span>${v.size}</span>
+                                                ${v.source === 'github'
+                    ? `<span>commit ${String(v.commitSha || '').slice(0, 7)}</span> • <span>${formatDate(v.ts)}</span>`
+                    : `<span>${formatDate(v.ts)}</span> • <span>${v.size}</span>`}
                                             </p>
                                             ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">备注：${v.note}</p>` : ''}
                                         </div>
                                     </div>
                                     ${t?.isLocked
                 ? `<button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                                            ${Icon('download', 'mr-2', 14)} 仅下载
+                                            ${Icon('download', 'mr-2', 14)} ${v.source === 'github' ? '从 GitHub 下载' : '仅下载'}
                                         </button>`
                 : `<button onclick="window.dispatch('startTaskWithDownload', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm">
                                             ${Icon('download', 'mr-2', 14)} 下载并占用
@@ -408,7 +414,9 @@ function RenderModals() {
                 ts: t.file.lastUpdated,
                 note: t.file.note || '',
                 isLatest: true,
-                source: t.file.source || 'storage'
+                source: t.file.source || 'storage',
+                branch: t.file.branch || '',
+                commitSha: t.file.commitSha || ''
             });
         }
         (t.activities || []).forEach(act => {
@@ -420,7 +428,9 @@ function RenderModals() {
                         ts: act.timestamp,
                         note: act.note || '',
                         isLatest: false,
-                        source: act.source || 'storage'
+                        source: act.source || 'storage',
+                        branch: act.branch || '',
+                        commitSha: act.commitSha || ''
                     });
                 }
             }
@@ -437,7 +447,7 @@ function RenderModals() {
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
                         <div>
                             <h3 class="text-xl font-bold text-gray-800">版本选择</h3>
-                            <p class="text-sm text-gray-500 mt-1 font-mono">${t.file?.name || 'File History'}</p>
+                            <p class="text-sm text-gray-500 mt-1 font-mono">${t.file?.source === 'github' ? 'GitHub 仓库快照' : (t.file?.name || 'File History')}</p>
                         </div>
                         <button onclick="window.dispatch('closeHistoryModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
                     </div>
@@ -486,14 +496,16 @@ function RenderModals() {
                                                 ${v.isLatest ? '<span class="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
-                                                <span>${formatDate(v.ts)}</span> • <span>${v.size}</span>
+                                                ${v.source === 'github'
+                    ? `<span>${v.branch || 'main'} 分支</span> • <span>commit ${String(v.commitSha || '').slice(0, 7)}</span> • <span>${formatDate(v.ts)}</span>`
+                    : `<span>${formatDate(v.ts)}</span> • <span>${v.size}</span>`}
                                             </p>
                                             ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">备注：${v.note}</p>` : ''}
                                         </div>
                                     </div>
 
                                     <button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                                        ${Icon('download', 'mr-2', 14)} 仅下载
+                                        ${Icon('download', 'mr-2', 14)} ${v.source === 'github' ? '从 GitHub 下载' : '仅下载'}
                                     </button>
                                 </div>
                             `).join('')}
