@@ -262,6 +262,7 @@ function RenderSidebar(options = {}) {
                     const isTaskActive = activeView.type === 'task_detail' && activeView.taskId === t.id;
                     const locker = t.isLocked && t.lockedBy ? state.users.find(u => u.uid === t.lockedBy) : null;
                     const isMe = locker && locker.uid === state.currentUser.uid;
+                    const remainingTodoCount = (t.todos || []).filter(todo => !todo.completed).length;
                     let activeColor = '#2563eb', activeFill = isTaskActive ? '#DBEAFE' : 'none', activeTextClass = isTaskActive ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-[#e5e7eb]';
 
                     if (locker) {
@@ -283,6 +284,8 @@ function RenderSidebar(options = {}) {
                     }
 
                     const durationStr = locker ? getDuration(t.lockedAt) : '00:00';
+                    const badgeTextSizeClass = remainingTodoCount >= 1000 ? 'text-[8px]' : remainingTodoCount >= 100 ? 'text-[9px]' : 'text-[10px]';
+                    const badgeVisibleClass = remainingTodoCount > 0 ? 'opacity-100' : 'opacity-0';
                     return `
                         <div draggable="${!t.completed}" 
                              data-task-id="${t.id}" 
@@ -295,7 +298,12 @@ function RenderSidebar(options = {}) {
                              oncontextmenu="window.dispatch('openTaskContextMenu', event, '${p.id}', '${t.id}')"
                              class="flex items-center px-2.5 py-1 cursor-pointer text-sm rounded-md mr-2 relative group transition-all ${activeTextClass} ${t.pinned ? 'ring-1 ring-gray-300' : ''}"
                              style="cursor: ${t.completed ? 'pointer' : 'grab'}; transition: transform 0.2s ease;">
-                            <span class="drag-handle mr-1 opacity-0 group-hover:opacity-100 transition-opacity ${isTaskActive ? 'text-white' : 'text-gray-400'}" style="cursor: grab; user-select: none;">⋮⋮</span>
+                            <div class="relative mr-1 w-5 shrink-0 flex items-center justify-center">
+                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full font-semibold tabular-nums transition-all ${badgeTextSizeClass} ${isTaskActive ? 'bg-white text-blue-600' : 'bg-gray-200 text-gray-800'} ${badgeVisibleClass} ${isTaskActive ? '' : 'group-hover:opacity-0'}">
+                                    ${remainingTodoCount}
+                                </span>
+                                <span class="drag-handle absolute inset-0 flex items-center justify-center opacity-0 transition-opacity ${isTaskActive ? 'hidden' : 'group-hover:opacity-100 text-gray-400'}" style="cursor: grab; user-select: none;">⋮⋮</span>
+                            </div>
                             ${Icon(isTextTask ? 'file-text' : 'folder', 'mr-2 flex-shrink-0 transition-colors', 14, activeFill, activeColor)}
                             <div class="flex items-center min-w-0 flex-1 ${locker ? 'font-medium' : ''} ${t.completed ? 'line-through opacity-60' : ''}">
                                 <span class="truncate min-w-0">${t.name}</span>
