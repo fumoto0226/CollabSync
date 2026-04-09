@@ -15,8 +15,12 @@ function isUserActivated() {
 
 const Actions = {
     login: async () => {
-        const { auth, googleProvider, signInWithPopup } = window.fb;
+        const { auth, googleProvider, signInWithPopup, signInWithRedirect } = window.fb;
         try {
+            if (state.ui.isMobile) {
+                await signInWithRedirect(auth, googleProvider);
+                return;
+            }
             await signInWithPopup(auth, googleProvider);
         } catch (err) {
             console.error("Login failed:", err);
@@ -49,6 +53,51 @@ const Actions = {
     goMobileSidebar: () => {
         state.ui.mobilePane = 'sidebar';
         Render();
+    },
+    trimTrailingTodoBreaks: (html) => {
+        const raw = String(html || '');
+        if (!raw) return '';
+        const box = document.createElement('div');
+        box.innerHTML = raw;
+
+        const hasMeaningfulContent = (el) => {
+            if (!el) return false;
+            const text = (el.textContent || '').replace(/\u00a0/g, ' ').trim();
+            return !!text || !!el.querySelector('img, .todo-mention');
+        };
+
+        const pruneTrailing = (node) => {
+            while (node && node.lastChild) {
+                const last = node.lastChild;
+                if (last.nodeType === Node.TEXT_NODE) {
+                    const trimmed = (last.textContent || '').replace(/[\s\u00a0]+$/g, '');
+                    if (!trimmed) {
+                        last.remove();
+                        continue;
+                    }
+                    if (trimmed !== last.textContent) {
+                        last.textContent = trimmed;
+                    }
+                    break;
+                }
+                if (last.nodeType === Node.ELEMENT_NODE) {
+                    if (last.tagName === 'BR') {
+                        last.remove();
+                        continue;
+                    }
+                    pruneTrailing(last);
+                    if ((last.tagName === 'DIV' || last.tagName === 'P') && !hasMeaningfulContent(last)) {
+                        last.remove();
+                        continue;
+                    }
+                    break;
+                }
+                break;
+            }
+        };
+
+        pruneTrailing(box);
+        return box.innerHTML.trim();
     },
     toggleProject: (pid) => {
         state.expandedProjects[pid] = !state.expandedProjects[pid];
@@ -1664,8 +1713,12 @@ const Actions = {
             }
             const editor = document.getElementById('todo-editor');
             if (editor) {
-                // Convert typed @name to mention chip right after delimiter is committed.
+                const shouldProcessMention = !!Actions.getActiveMentionQuery(editor) || !!(picker?.visible && picker.taskId === tid);
                 setTimeout(() => {
+                    if (!shouldProcessMention) {
+                        Actions.updateEditorDraft(tid, editor.innerHTML);
+                        return;
+                    }
                     Actions.normalizeMentionsInEditor(tid, editor);
                     Actions.updateEditorDraft(tid, editor.innerHTML);
                     Actions.closeMentionPicker();
@@ -2165,6 +2218,8 @@ const Actions = {
         const editor = document.getElementById('todo-editor');
         if (!editor || !editor.innerHTML.trim()) return;
         Actions.normalizeMentionsInEditor(tid, editor);
+        const normalizedHtml = Actions.trimTrailingTodoBreaks(editor.innerHTML);
+        if (!normalizedHtml.trim()) return;
         const t = state.tasks.find(t => t.id === tid);
         const editedTodoId = state.ui.editingTodoId;
         const todo = t.todos.find(td => td.id === editedTodoId);
@@ -2186,7 +2241,7 @@ const Actions = {
                 Render();
             }
         }
-        if (todo) { todo.text = editor.innerHTML; todo.images = nextImages; todo.priority = state.ui.editorPriority || 'none'; }
+        if (todo) { todo.text = normalizedHtml; todo.images = nextImages; todo.priority = state.ui.editorPriority || 'none'; }
         if (todo && window.queueTodoAnimation) window.queueTodoAnimation(tid, todo.id);
         if (todo) state.ui.todoScrollTarget = { type: 'todo', taskId: tid, todoId: todo.id };
         state.ui.editingTodoId = null; state.ui.editorTaskId = null; state.ui.editorContent = ''; state.ui.editorPriority = 'none'; state.ui.todoPriorityMenuOpen = false; state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null }; Actions.clearEditorImages();
@@ -2203,7 +2258,8 @@ const Actions = {
         const editor = document.getElementById('todo-editor');
         if (!editor || !editor.innerHTML.trim()) return;
         Actions.normalizeMentionsInEditor(tid, editor);
-        const html = editor.innerHTML;
+        const html = Actions.trimTrailingTodoBreaks(editor.innerHTML);
+        if (!html.trim()) return;
         const t = state.tasks.find(t => t.id === tid);
         const hasPendingUpload = (state.ui.editorImages || []).some(img => typeof img === 'object' && img?.file);
         let nextImages = [];
@@ -2249,7 +2305,8 @@ const Actions = {
         const editor = document.getElementById('todo-editor');
         if (!editor || !editor.innerHTML.trim()) return;
         Actions.normalizeMentionsInEditor(tid, editor);
-        const html = editor.innerHTML;
+        const html = Actions.trimTrailingTodoBreaks(editor.innerHTML);
+        if (!html.trim()) return;
         const t = state.tasks.find(t => t.id === tid);
         const hasPendingUpload = (state.ui.editorImages || []).some(img => typeof img === 'object' && img?.file);
         let nextImages = [];

@@ -1,5 +1,11 @@
 function initAuth() {
-    const { auth, db, doc, getDoc, setDoc } = window.fb;
+    const { auth, db, doc, getDoc, setDoc, getRedirectResult } = window.fb;
+    if (getRedirectResult) {
+        getRedirectResult(auth).catch((err) => {
+            console.error('Redirect login failed:', err);
+            alert('手机登录失败，请重试。');
+        });
+    }
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             // Check if user exists in Firestore

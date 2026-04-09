@@ -760,7 +760,7 @@ function RenderMain() {
         return `
             <div class="flex-1 flex flex-col h-full bg-[#f3f4f6]" id="main-scroll" data-scroll>
                 ${state.ui.todoPriorityMenuOpen ? `<div class="fixed inset-0 z-[65]" onclick="window.dispatch('closeTodoPriorityMenu')"></div>` : ''}
-                 <div class="${isMobile ? 'px-4 pt-16 pb-4 bg-white border-b shadow-sm' : 'px-6 py-5 border-b flex justify-between items-center bg-white z-10 shadow-sm sticky top-0'}">
+                 <div class="${isMobile ? 'px-4 pt-24 pb-4 bg-white border-b shadow-sm' : 'px-6 py-5 border-b flex justify-between items-center bg-white z-10 shadow-sm sticky top-0'}">
                     ${isMobile ? `
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0 flex-1">
