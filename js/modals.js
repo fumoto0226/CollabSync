@@ -1,4 +1,49 @@
 function RenderModals() {
+    // Pending Todo Recovery (interrupted send)
+    if (state.ui.pendingTodoRecovery) {
+        const rec = state.ui.pendingTodoRecovery;
+        const tempBox = document.createElement('div');
+        tempBox.innerHTML = rec.html || '';
+        const previewText = (tempBox.textContent || '').trim();
+        const totalImg = (rec.images || []).length;
+        const pendingImg = (rec.images || []).filter(i => i && i.pending).length;
+        const uploadedImg = totalImg - pendingImg;
+        return `
+            <div class="fixed inset-0 z-[95] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 fade-in">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                    <div class="px-6 py-5 border-b bg-amber-50 flex items-center gap-2">
+                        <div class="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">${Icon('alert-triangle', '', 18)}</div>
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">上次有未发送的待办</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">检测到一条没有发出去的待办，是否恢复？</p>
+                        </div>
+                    </div>
+                    <div class="p-6 space-y-3 text-sm">
+                        ${rec.projectName || rec.taskName ? `
+                            <div class="text-xs text-gray-500">
+                                ${rec.projectName ? `项目：<span class="text-gray-700 font-medium">${rec.projectName}</span>` : ''}
+                                ${rec.projectName && rec.taskName ? ' · ' : ''}
+                                ${rec.taskName ? `任务：<span class="text-gray-700 font-medium">${rec.taskName}</span>` : ''}
+                            </div>
+                        ` : ''}
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-800 max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                            ${previewText ? previewText.replace(/</g, '&lt;') : '<span class="text-gray-400 italic">（无文字内容）</span>'}
+                        </div>
+                        ${totalImg > 0 ? `
+                            <div class="text-xs text-gray-500 flex items-center gap-1">
+                                ${Icon('image', '', 14)} 共 ${totalImg} 张图片（已上传 ${uploadedImg}${pendingImg > 0 ? `，<span class="text-amber-600 font-medium">${pendingImg} 张未上传完成将丢失</span>` : ''}）
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="px-6 py-4 bg-gray-50 border-t flex items-center justify-end gap-3">
+                        <button onclick="window.dispatch('dismissPendingTodoRecovery')" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg">放弃</button>
+                        <button onclick="window.dispatch('restorePendingTodoDraft')" class="px-5 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm">恢复到编辑器</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     // Image Preview Modal (for todo inline images)
     if (state.ui.imagePreviewUrl) {
         const imageUrl = state.ui.imagePreviewUrl;
@@ -631,14 +676,21 @@ function RenderModals() {
         let activationBtnHtml = '';
         if (u) {
             const isAdmin = u.uid === '0gKyPFlHBGg6jdljKDZ02gP8zGl1';
+            const isInfinite = !!u.activationInfinite;
             const expiresMs = u.activationExpiresAt ? (u.activationExpiresAt.seconds ? u.activationExpiresAt.seconds * 1000 : u.activationExpiresAt) : 0;
             const remainDays = Math.max(0, Math.ceil((expiresMs - Date.now()) / 86400000));
-            const isActivated = isAdmin || (remainDays > 0);
+            const isActivated = isAdmin || isInfinite || (remainDays > 0);
 
             if (isAdmin) {
                 activationBtnHtml = `
                     <div class="px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-200 flex items-center shadow-sm" title="管理员无需激活">
                         ${Icon('shield-check', 'mr-1', 14)} 管理员
+                    </div>
+                `;
+            } else if (isInfinite) {
+                activationBtnHtml = `
+                    <div class="px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs border border-purple-200 flex items-center shadow-sm">
+                        <span class="font-bold flex items-center gap-1">${Icon('infinity', '', 12)} 永久激活</span>
                     </div>
                 `;
             } else if (isActivated) {
@@ -784,12 +836,12 @@ function RenderModals() {
         const unusedCount = codes.filter(c => c.usedCount < c.maxUses).length;
 
         return `
-            <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 fade-in" onclick="if(event.target===this) window.dispatch('closeActivationCodesModal')">
+            <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-gradient-to-r from-amber-50 to-orange-50">
                         <div>
                             <h3 class="text-xl font-bold text-gray-800 flex items-center">${Icon('key-round', 'mr-2 text-amber-500', 22)} 激活码管理</h3>
-                            <p class="text-sm text-gray-500 mt-1">生成和管理用户激活码 · 有效期 90 天 · 每码限用 1 次</p>
+                            <p class="text-sm text-gray-500 mt-1">生成和管理用户激活码 · 激活后有效期 90 天 · 每码限用 1 次</p>
                         </div>
                         <button onclick="window.dispatch('closeActivationCodesModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
                     </div>
@@ -827,50 +879,118 @@ function RenderModals() {
             const isUsed = c.usedCount >= c.maxUses;
             const createdMs = c.createdAt ? (c.createdAt.seconds ? c.createdAt.seconds * 1000 : c.createdAt) : 0;
             const createdDate = createdMs ? new Date(createdMs).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '未知';
-            const expiryMs = createdMs + (c.durationDays || 90) * 86400000;
-            const expiryDate = createdMs ? new Date(expiryMs).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '未知';
-            const isExpired = createdMs && Date.now() > expiryMs;
-            const remainDays = createdMs ? Math.max(0, Math.ceil((expiryMs - Date.now()) / 86400000)) : 0;
+            const isInfinite = !!c.userActivationInfinite;
+            // 用户激活到期时间（优先使用记录在码上的字段，旧数据回退到 usedAt/createdAt + duration）
+            let userExpiryMs = 0;
+            if (c.userActivationExpiresAt) {
+                userExpiryMs = c.userActivationExpiresAt.seconds ? c.userActivationExpiresAt.seconds * 1000 : c.userActivationExpiresAt;
+            } else if (isUsed && c.usedAt) {
+                const baseMs = c.usedAt.seconds ? c.usedAt.seconds * 1000 : c.usedAt;
+                userExpiryMs = baseMs + (c.durationDays || 90) * 86400000;
+            }
+            const isExpired = isUsed && !isInfinite && userExpiryMs && Date.now() > userExpiryMs;
+            const remainDays = userExpiryMs ? Math.max(0, Math.ceil((userExpiryMs - Date.now()) / 86400000)) : 0;
+            const expiryDate = userExpiryMs ? new Date(userExpiryMs).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '';
             const usedByUser = c.usedByEmail || c.usedByUid || '';
+            const isEditing = state.ui.expiryEditorCode === c.code;
+            // 编辑器默认日期（YYYY-MM-DD）
+            const defaultDate = (() => {
+                const ms = userExpiryMs || (Date.now() + 90 * 86400000);
+                const d = new Date(ms);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+            })();
+
+            let statusBadge;
+            if (!isUsed) {
+                statusBadge = '<span class="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-600 rounded font-medium">可用</span>';
+            } else if (isInfinite) {
+                statusBadge = '<span class="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded font-medium">永久</span>';
+            } else if (isExpired) {
+                statusBadge = '<span class="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-500 rounded font-medium">已过期</span>';
+            } else {
+                statusBadge = '<span class="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">已激活</span>';
+            }
+
+            let iconCircle;
+            if (!isUsed) {
+                iconCircle = `<div class="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-500">${Icon('key-round', '', 16)}</div>`;
+            } else if (isInfinite) {
+                iconCircle = `<div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-500">${Icon('infinity', '', 16)}</div>`;
+            } else if (isExpired) {
+                iconCircle = `<div class="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-400">${Icon('clock', '', 16)}</div>`;
+            } else {
+                iconCircle = `<div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">${Icon('check', '', 16)}</div>`;
+            }
+
+            // 到期信息文案
+            let expiryInfo;
+            if (!isUsed) {
+                expiryInfo = '未使用 · 激活后开始倒计时';
+            } else if (isInfinite) {
+                expiryInfo = '<span class="text-purple-500 font-medium">永久激活</span>';
+            } else if (userExpiryMs) {
+                expiryInfo = `到期: ${expiryDate}${!isExpired ? ` · <span class="text-amber-500 font-medium">剩余 ${remainDays} 天</span>` : ''}`;
+            } else {
+                expiryInfo = '到期信息缺失';
+            }
 
             return `
-                                        <div class="bg-white rounded-xl border ${isUsed ? 'border-gray-200 opacity-60' : isExpired ? 'border-red-200 opacity-70' : 'border-gray-200'} p-4 flex items-center justify-between hover:shadow-sm transition-all">
-                                            <div class="flex items-center gap-4 flex-1 min-w-0">
-                                                <div class="flex-shrink-0">
-                                                    ${isUsed
-                    ? `<div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">${Icon('check', '', 16)}</div>`
-                    : isExpired
-                        ? `<div class="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-400">${Icon('clock', '', 16)}</div>`
-                        : `<div class="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-500">${Icon('key-round', '', 16)}</div>`
-                }
-                                                </div>
-                                                <div class="flex-1 min-w-0">
-                                                    <div class="flex items-center gap-2">
-                                                        <code class="text-sm font-mono font-bold ${isUsed ? 'text-gray-400' : isExpired ? 'text-red-500' : 'text-gray-800'} tracking-wider">${c.code}</code>
-                                                        ${isUsed
-                    ? '<span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-medium">已使用</span>'
-                    : isExpired
-                        ? '<span class="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-500 rounded font-medium">已过期</span>'
-                        : '<span class="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-600 rounded font-medium">可用</span>'
-                }
+                                        <div class="bg-white rounded-xl border ${isExpired ? 'border-red-200 opacity-70' : 'border-gray-200'} p-4 hover:shadow-sm transition-all">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-4 flex-1 min-w-0">
+                                                    <div class="flex-shrink-0">${iconCircle}</div>
+                                                    <div class="flex-1 min-w-0">
+                                                        <div class="flex items-center gap-2">
+                                                            <code class="text-sm font-mono font-bold ${isExpired ? 'text-red-500' : 'text-gray-800'} tracking-wider">${c.code}</code>
+                                                            ${statusBadge}
+                                                        </div>
+                                                        <p class="text-[11px] text-gray-400 mt-1">创建: ${createdDate} · ${expiryInfo}</p>
+                                                        ${isUsed && usedByUser ? `<p class="text-[11px] text-blue-400 mt-0.5">${Icon('user', 'inline-block mr-1 align-middle', 12)} 使用者: ${usedByUser}</p>` : ''}
                                                     </div>
-                                                    <p class="text-[11px] text-gray-400 mt-1">创建: ${createdDate} · 到期: ${expiryDate}${!isUsed && !isExpired ? ` · <span class="text-amber-500 font-medium">剩余 ${remainDays} 天</span>` : ''}</p>
-                                                    ${isUsed && usedByUser ? `<p class="text-[11px] text-blue-400 mt-0.5">${Icon('user', 'inline-block mr-1 align-middle', 12)} 使用者: ${usedByUser}</p>` : ''}
+                                                </div>
+                                                <div class="flex items-center gap-1 ml-3">
+                                                    ${isUsed ? `
+                                                        <button onclick="window.dispatch('${isEditing ? 'closeExpiryEditor' : 'openExpiryEditor'}', '${c.code}')"
+                                                            class="p-2 hover:bg-amber-50 text-gray-400 hover:text-amber-500 rounded-lg transition-colors" title="调整到期时间">
+                                                            ${Icon('calendar-clock', '', 16)}
+                                                        </button>
+                                                    ` : `
+                                                        <button onclick="window.dispatch('copyActivationCode', '${c.code}')"
+                                                            class="p-2 hover:bg-blue-50 text-gray-400 hover:text-blue-500 rounded-lg transition-colors relative" title="复制">
+                                                            <span id="copy-text-${c.code}" class="absolute -left-10 text-[10px] text-green-500 opacity-0 transition-opacity whitespace-nowrap">已复制</span>
+                                                            ${Icon('copy', '', 16)}
+                                                        </button>
+                                                    `}
+                                                    <button onclick="window.dispatch('openConfirmModal', 'delete_activation', '${c.code}', '删除激活码', '确定要删除激活码 ${c.code} 吗？')"
+                                                        class="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition-colors" title="删除">
+                                                        ${Icon('trash-2', '', 16)}
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <div class="flex items-center gap-1 ml-3">
-                                                ${!isUsed ? `
-                                                    <button onclick="window.dispatch('copyActivationCode', '${c.code}')" 
-                                                        class="p-2 hover:bg-blue-50 text-gray-400 hover:text-blue-500 rounded-lg transition-colors relative" title="复制">
-                                                        <span id="copy-text-${c.code}" class="absolute -left-10 text-[10px] text-green-500 opacity-0 transition-opacity whitespace-nowrap">已复制</span>
-                                                        ${Icon('copy', '', 16)}
-                                                    </button>
-                                                ` : ''}
-                                                <button onclick="window.dispatch('openConfirmModal', 'delete_activation', '${c.code}', '删除激活码', '确定要删除激活码 ${c.code} 吗？')" 
-                                                    class="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition-colors" title="删除">
-                                                    ${Icon('trash-2', '', 16)}
-                                                </button>
-                                            </div>
+                                            ${isEditing ? `
+                                                <div class="mt-3 pt-3 border-t border-gray-100 bg-amber-50/40 -mx-4 -mb-4 px-4 pb-4 rounded-b-xl">
+                                                    <p class="text-[11px] font-semibold text-gray-600 mb-2">调整用户激活到期时间</p>
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <input id="expiry-date-input-${c.code}" type="date" value="${defaultDate}"
+                                                            class="px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+                                                        <button onclick="window.dispatch('saveUserExpiry', '${c.code}', 'date')"
+                                                            class="px-3 py-1.5 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm">
+                                                            保存
+                                                        </button>
+                                                        <button onclick="window.dispatch('saveUserExpiry', '${c.code}', 'infinite')"
+                                                            class="px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-lg flex items-center gap-1">
+                                                            ${Icon('infinity', '', 12)} 设为永久
+                                                        </button>
+                                                        <button onclick="window.dispatch('closeExpiryEditor')"
+                                                            class="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">
+                                                            取消
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ` : ''}
                                         </div>
                                     `;
         }).join('')}
@@ -901,8 +1021,8 @@ function RenderModals() {
                                 ${Icon('info', '', 18)}
                             </div>
                             <div class="text-sm">
-                                <p class="font-bold mb-1">文件任务功能需激活</p>
-                                <p class="text-xs text-blue-700 opacity-90 leading-relaxed">文件上传下载功能有可能产生费用，需要独立激活使用。如有需要联系管理员（wechat:kururugi111）获取 12 位激活码。</p>
+                                <p class="font-bold mb-1">文件上传功能需激活</p>
+                                <p class="text-xs text-blue-700 opacity-90 leading-relaxed">向项目上传文件可能产生费用，需要独立激活后方可使用（下载、评论、GitHub 同步等其他功能不受限）。如有需要请联系管理员（wechat:kururugi111）获取 12 位激活码。激活后有效期 90 天。</p>
                             </div>
                         </div>
                         

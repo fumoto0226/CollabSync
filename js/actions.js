@@ -1,11 +1,13 @@
 // --- Actions ---
 
-// 工具函数：检查当前用户是否已激活（且未过期）
+// 工具函数：检查当前用户是否已激活（且未过期，或永久激活）
 function isUserActivated() {
     const u = state.currentUser;
     if (!u) return false;
     // 管理员始终视为已激活
     if (u.uid === '0gKyPFlHBGg6jdljKDZ02gP8zGl1') return true;
+    // 永久激活
+    if (u.activationInfinite) return true;
     if (!u.activationExpiresAt) return false;
     const expiresMs = u.activationExpiresAt.seconds
         ? u.activationExpiresAt.seconds * 1000
@@ -16,15 +18,31 @@ function isUserActivated() {
 const Actions = {
     login: async () => {
         const { auth, googleProvider, signInWithPopup, signInWithRedirect } = window.fb;
+        // 优先尝试弹窗登录（移动端也支持）。仅当弹窗被浏览器拦截或环境不支持时才回退到 redirect。
+        // signInWithRedirect 在 iOS Safari / 移动端 Chrome 上常因 ITP 导致回跳后 session 丢失，
+        // 所以尽量避免使用它。
         try {
-            if (state.ui.isMobile) {
-                await signInWithRedirect(auth, googleProvider);
-                return;
-            }
             await signInWithPopup(auth, googleProvider);
         } catch (err) {
-            console.error("Login failed:", err);
-            alert("登录失败，请重试");
+            const code = err?.code || '';
+            const fallbackCodes = new Set([
+                'auth/popup-blocked',
+                'auth/popup-closed-by-user',
+                'auth/cancelled-popup-request',
+                'auth/operation-not-supported-in-this-environment'
+            ]);
+            if (fallbackCodes.has(code)) {
+                try {
+                    await signInWithRedirect(auth, googleProvider);
+                    return;
+                } catch (e2) {
+                    console.error('Redirect login fallback failed:', e2);
+                    alert('登录失败，请重试');
+                    return;
+                }
+            }
+            console.error('Login failed:', err);
+            alert('登录失败，请重试');
         }
     },
     logout: async () => {
@@ -99,6 +117,113 @@ const Actions = {
         pruneTrailing(box);
         return box.innerHTML.trim();
     },
+
+    // ===== Pending Todo Draft (recovery after interrupted send) =====
+    _pendingTodoKey: () => {
+        const uid = state.currentUser?.uid || 'anon';
+        return `cs_pending_todo_${uid}`;
+    },
+    savePendingTodoDraft: (tid, { html, priority }) => {
+        try {
+            const t = state.tasks.find(x => x.id === tid);
+            const project = t ? state.projects.find(p => p.id === t.projectId) : null;
+            const images = (state.ui.editorImages || []).map(img => {
+                if (typeof img !== 'object' || !img) return null;
+                return {
+                    name: img.name || '图片',
+                    // 已上传的图片 URL 可以恢复；未上传的本地 File 无法持久化
+                    url: img.file ? null : (img.url || img.previewUrl || null),
+                    pending: !!img.file
+                };
+            }).filter(Boolean);
+            const record = {
+                taskId: tid,
+                taskName: t?.name || '',
+                projectId: t?.projectId || null,
+                projectName: project?.name || '',
+                html: html || '',
+                priority: priority || 'none',
+                images,
+                savedAt: Date.now()
+            };
+            localStorage.setItem(Actions._pendingTodoKey(), JSON.stringify(record));
+        } catch (e) {
+            console.warn('保存待办草稿失败:', e);
+        }
+    },
+    clearPendingTodoDraft: (tid) => {
+        try {
+            const raw = localStorage.getItem(Actions._pendingTodoKey());
+            if (!raw) return;
+            const rec = JSON.parse(raw);
+            if (!tid || rec.taskId === tid) {
+                localStorage.removeItem(Actions._pendingTodoKey());
+            }
+        } catch (e) {
+            console.warn('清除待办草稿失败:', e);
+        }
+    },
+    loadPendingTodoDraft: () => {
+        try {
+            const raw = localStorage.getItem(Actions._pendingTodoKey());
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch (e) {
+            return null;
+        }
+    },
+    checkPendingTodoOnLogin: () => {
+        const rec = Actions.loadPendingTodoDraft();
+        if (!rec) return;
+        // 至少要有内容或图片占位才提示
+        const hasContent = (rec.html && rec.html.trim()) || (rec.images && rec.images.length);
+        if (!hasContent) {
+            Actions.clearPendingTodoDraft();
+            return;
+        }
+        state.ui.pendingTodoRecovery = rec;
+        Render();
+    },
+    restorePendingTodoDraft: () => {
+        const rec = state.ui.pendingTodoRecovery;
+        if (!rec) return;
+        const t = state.tasks.find(x => x.id === rec.taskId);
+        if (!t) {
+            alert('原任务已不存在，无法恢复草稿。');
+            Actions.dismissPendingTodoRecovery();
+            return;
+        }
+        // 跳转到任务详情并打开编辑器
+        state.activeView = { type: 'task_detail', projectId: t.projectId, taskId: t.id };
+        state.ui.editorTaskId = t.id;
+        state.ui.editorContent = rec.html || '';
+        state.ui.editorPriority = rec.priority || 'none';
+        // 恢复已上传的图片 URL；本地 File 已丢失，提示用户重新添加
+        const restorableImages = (rec.images || [])
+            .filter(img => img && img.url && !img.pending)
+            .map((img, idx) => ({
+                id: `restored:${idx}:${Date.now()}`,
+                name: img.name || `图片${idx + 1}`,
+                url: img.url,
+                previewUrl: img.url,
+                file: null
+            }));
+        state.ui.editorImages = restorableImages;
+        const missingCount = (rec.images || []).filter(img => img && img.pending).length;
+        state.ui.pendingTodoRecovery = null;
+        Actions.clearPendingTodoDraft();
+        state.ui.todoScrollTarget = { type: 'editor', taskId: t.id };
+        Render();
+        if (missingCount > 0) {
+            setTimeout(() => alert(`已恢复未发送的待办内容。其中有 ${missingCount} 张图片当时还未上传完成，已丢失，请重新添加。`), 0);
+        }
+    },
+    dismissPendingTodoRecovery: () => {
+        state.ui.pendingTodoRecovery = null;
+        Actions.clearPendingTodoDraft();
+        Render();
+    },
+
     toggleProject: (pid) => {
         state.expandedProjects[pid] = !state.expandedProjects[pid];
         try {
@@ -183,11 +308,6 @@ const Actions = {
         Actions.setView({ type: 'new_task', projectId: pid });
     },
     updateDraft: (key, value) => {
-        // 切换到文件任务时检查激活状态
-        if (key === 'kind' && value === 'file' && !isUserActivated()) {
-            alert('该功能需要激活账号后才能使用。请在个人设置中输入激活码进行激活。');
-            return;
-        }
         state.draft[key] = value;
         if (key !== 'name' && key !== 'desc' && key !== 'memberSearchInput') Render();
     },
@@ -1018,11 +1138,6 @@ const Actions = {
         const { db, doc, updateDoc } = window.fb;
         const t = state.tasks.find(t => t.id === tid);
         if (!t) return;
-        // 文件任务需要激活
-        if (t.kind === 'file' && !isUserActivated()) {
-            alert('该功能需要激活账号后才能使用。请在个人设置中输入激活码进行激活。');
-            return;
-        }
         const now = Date.now();
         t.isLocked = true;
         t.lockedBy = state.currentUser.uid;
@@ -1041,21 +1156,11 @@ const Actions = {
         }
     },
     startTaskWithDownload: (tid, ver) => {
-        const t = state.tasks.find(t => t.id === tid);
-        if (t && t.kind === 'file' && !isUserActivated()) {
-            alert('该功能需要激活账号后才能使用。请在个人设置中输入激活码进行激活。');
-            return;
-        }
         Actions.downloadVersion(tid, ver);
         Actions.startTask(tid, ver);
     },
     downloadVersion: async (tid, ver) => {
         const t = state.tasks.find(t => t.id === tid);
-        // 文件任务下载需要激活
-        if (t && t.kind === 'file' && !isUserActivated()) {
-            alert('该功能需要激活账号后才能使用。请在个人设置中输入激活码进行激活。');
-            return;
-        }
         if (!t || !t.file) {
             alert('当前任务没有可下载的文件');
             return;
@@ -1171,6 +1276,10 @@ const Actions = {
             Actions.recordGithubVersion(tid);
             return;
         }
+        if (t && t.kind === 'file' && !isUserActivated()) {
+            alert('该功能需要激活账号后才能使用。请在个人设置中输入激活码进行激活。');
+            return;
+        }
         document.getElementById(`modal-file-upload-${tid}`)?.click();
     },
     triggerInitialUpload: (tid) => {
@@ -1198,6 +1307,11 @@ const Actions = {
 
         const t = state.tasks.find(t => t.id === tid);
         if (!t) return;
+        if (t.kind === 'file' && !isUserActivated()) {
+            alert('该功能需要激活账号后才能使用。请在个人设置中输入激活码进行激活。');
+            input.value = '';
+            return;
+        }
 
         // 先读取备注，再触发重新渲染，否则 textarea 会被重置
         let note = '';
@@ -1414,9 +1528,23 @@ const Actions = {
         // 检查是否已使用且未过期（前端预检查，后端也有保护）
         const codeData = (state.activationCodes || []).find(c => c.code === code);
         if (codeData && codeData.usedCount > 0) {
-            const createdMs = codeData.createdAt ? (codeData.createdAt.seconds ? codeData.createdAt.seconds * 1000 : codeData.createdAt) : 0;
-            const expiryMs = createdMs + (codeData.durationDays || 90) * 86400000;
-            if (Date.now() < expiryMs) {
+            if (codeData.userActivationInfinite) {
+                alert('该激活码用户为永久激活，无法删除。请先调整该用户的到期时间。');
+                return;
+            }
+            let expiryMs = 0;
+            if (codeData.userActivationExpiresAt) {
+                expiryMs = codeData.userActivationExpiresAt.seconds
+                    ? codeData.userActivationExpiresAt.seconds * 1000
+                    : codeData.userActivationExpiresAt;
+            } else if (codeData.usedAt) {
+                const baseMs = codeData.usedAt.seconds ? codeData.usedAt.seconds * 1000 : codeData.usedAt;
+                expiryMs = baseMs + (codeData.durationDays || 90) * 86400000;
+            } else if (codeData.createdAt) {
+                const baseMs = codeData.createdAt.seconds ? codeData.createdAt.seconds * 1000 : codeData.createdAt;
+                expiryMs = baseMs + (codeData.durationDays || 90) * 86400000;
+            }
+            if (expiryMs && Date.now() < expiryMs) {
                 alert('该激活码已被使用且尚未过期，无法删除。请等待过期后再删除。');
                 return;
             }
@@ -1430,6 +1558,48 @@ const Actions = {
         } catch (err) {
             console.error('❌ 删除激活码失败:', err);
             alert('删除激活码失败: ' + (err.message || '未知错误'));
+        }
+    },
+    openExpiryEditor: (code) => {
+        state.ui.expiryEditorCode = code;
+        Render();
+    },
+    closeExpiryEditor: () => {
+        state.ui.expiryEditorCode = null;
+        Render();
+    },
+    saveUserExpiry: async (code, mode) => {
+        const codeData = (state.activationCodes || []).find(c => c.code === code);
+        if (!codeData || !codeData.usedByUid) {
+            alert('该激活码尚未被任何用户使用');
+            return;
+        }
+        const { functions, httpsCallable } = window.fb;
+        const fn = httpsCallable(functions, 'setUserActivationExpiry');
+        try {
+            if (mode === 'infinite') {
+                await fn({ uid: codeData.usedByUid, infinite: true });
+            } else {
+                const input = document.getElementById(`expiry-date-input-${code}`);
+                const value = input?.value;
+                if (!value) {
+                    alert('请选择到期日期');
+                    return;
+                }
+                // 取选定日期当天的 23:59:59 作为到期时间
+                const ms = new Date(value + 'T23:59:59').getTime();
+                if (!ms || isNaN(ms)) {
+                    alert('日期格式无效');
+                    return;
+                }
+                await fn({ uid: codeData.usedByUid, expiresAt: ms, infinite: false });
+            }
+            console.log('✅ 用户激活到期时间已更新');
+            state.ui.expiryEditorCode = null;
+            Render();
+        } catch (err) {
+            console.error('❌ 更新到期时间失败:', err);
+            alert('更新到期时间失败: ' + (err.message || '未知错误'));
         }
     },
     copyActivationCode: async (code) => {
@@ -2216,14 +2386,16 @@ const Actions = {
     saveTodo: async (tid) => {
         const { db, doc, updateDoc } = window.fb;
         const editor = document.getElementById('todo-editor');
-        if (!editor || !editor.innerHTML.trim()) return;
+        if (!editor) return;
         Actions.normalizeMentionsInEditor(tid, editor);
         const normalizedHtml = Actions.trimTrailingTodoBreaks(editor.innerHTML);
-        if (!normalizedHtml.trim()) return;
+        const hasImages = (state.ui.editorImages || []).length > 0;
+        if (!normalizedHtml.trim() && !hasImages) return;
         const t = state.tasks.find(t => t.id === tid);
         const editedTodoId = state.ui.editingTodoId;
         const todo = t.todos.find(td => td.id === editedTodoId);
         const hasPendingUpload = (state.ui.editorImages || []).some(img => typeof img === 'object' && img?.file);
+        Actions.savePendingTodoDraft(tid, { html: normalizedHtml, priority: state.ui.editorPriority || 'none' });
         let nextImages = [];
         try {
             if (hasPendingUpload) {
@@ -2251,17 +2423,20 @@ const Actions = {
         } catch (err) {
             console.warn('保存待办到 Firestore 失败（本地仍已更新）:', err);
         }
+        Actions.clearPendingTodoDraft(tid);
         Render();
     },
     reAddTodo: async (tid) => {
         const { db, doc, updateDoc } = window.fb;
         const editor = document.getElementById('todo-editor');
-        if (!editor || !editor.innerHTML.trim()) return;
+        if (!editor) return;
         Actions.normalizeMentionsInEditor(tid, editor);
         const html = Actions.trimTrailingTodoBreaks(editor.innerHTML);
-        if (!html.trim()) return;
+        const hasImages = (state.ui.editorImages || []).length > 0;
+        if (!html.trim() && !hasImages) return;
         const t = state.tasks.find(t => t.id === tid);
         const hasPendingUpload = (state.ui.editorImages || []).some(img => typeof img === 'object' && img?.file);
+        Actions.savePendingTodoDraft(tid, { html, priority: state.ui.editorPriority || 'none' });
         let nextImages = [];
         try {
             if (hasPendingUpload) {
@@ -2287,7 +2462,8 @@ const Actions = {
             images: nextImages,
             priority: state.ui.editorPriority || 'none',
             completed: false,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            createdBy: state.currentUser?.uid || null
         });
         if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
         state.ui.todoScrollTarget = { type: 'todo', taskId: tid, todoId: newTodoId };
@@ -2298,17 +2474,21 @@ const Actions = {
         } catch (err) {
             console.warn('重新添加待办到 Firestore 失败（本地仍已更新）:', err);
         }
+        Actions.clearPendingTodoDraft(tid);
         Render();
     },
     addTodo: async (tid) => {
         const { db, doc, updateDoc } = window.fb;
         const editor = document.getElementById('todo-editor');
-        if (!editor || !editor.innerHTML.trim()) return;
+        if (!editor) return;
         Actions.normalizeMentionsInEditor(tid, editor);
         const html = Actions.trimTrailingTodoBreaks(editor.innerHTML);
-        if (!html.trim()) return;
+        const hasImages = (state.ui.editorImages || []).length > 0;
+        if (!html.trim() && !hasImages) return;
         const t = state.tasks.find(t => t.id === tid);
         const hasPendingUpload = (state.ui.editorImages || []).some(img => typeof img === 'object' && img?.file);
+        // 提交开始时记录"待办草稿快照"，以便用户上传图片时关闭网页后下次提示恢复
+        Actions.savePendingTodoDraft(tid, { html, priority: state.ui.editorPriority || 'none' });
         let nextImages = [];
         try {
             if (hasPendingUpload) {
@@ -2333,7 +2513,8 @@ const Actions = {
             images: nextImages,
             priority: state.ui.editorPriority || 'none',
             completed: false,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            createdBy: state.currentUser?.uid || null
         });
         if (window.queueTodoAnimation) window.queueTodoAnimation(tid, newTodoId);
         editor.innerHTML = ''; state.ui.editorTaskId = null; state.ui.editorContent = ''; state.ui.editorPriority = 'none'; state.ui.todoPriorityMenuOpen = false; state.ui.todoPriorityMenuTarget = { mode: null, taskId: null, todoId: null }; Actions.clearEditorImages();
@@ -2343,6 +2524,7 @@ const Actions = {
         } catch (err) {
             console.warn('新增待办到 Firestore 失败（本地仍已更新）:', err);
         }
+        Actions.clearPendingTodoDraft(tid);
         Render();
     },
     copyTodoForAi: async (tid, tdid) => {

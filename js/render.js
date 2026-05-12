@@ -86,7 +86,7 @@ function renderTodoActions(taskId, todo) {
         ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
         : '';
     return `
-        <div class="flex items-center ${isMobile ? 'opacity-100 mt-1.5 justify-end' : `${priorityMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} ml-2`} transition-opacity gap-1">
+        <div class="flex items-center ${isMobile ? 'opacity-100 mt-1.5 justify-end' : `${priorityMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} ml-2 mr-3`} transition-opacity gap-1">
             <div class="relative">
                 <button onclick="event.stopPropagation(); window.dispatch('toggleTodoPriorityMenu', 'todo', '${taskId}', '${todo.id}')" 
                     class="p-1.5 rounded transition-colors ${priorityButtonClass}" title="${priorityMeta.label}"
@@ -111,6 +111,38 @@ function renderTodoActions(taskId, todo) {
     `;
 }
 
+function renderTodoAuthorBadge(todo) {
+    if (state.ui.isMobile) return '';
+    const uid = todo.createdBy;
+    if (!uid) return '';
+    const user = state.users.find(u => u.uid === uid);
+    const isMe = uid === state.currentUser?.uid;
+    const dotColor = isMe ? 'bg-emerald-500' : 'bg-purple-500';
+    const nameColor = isMe ? 'text-emerald-700' : 'text-purple-700';
+    const ts = todo.createdAt || 0;
+    const dt = ts ? new Date(ts) : null;
+    const fullDate = dt
+        ? `${dt.getFullYear()}年${String(dt.getMonth() + 1).padStart(2, '0')}月${String(dt.getDate()).padStart(2, '0')}日 ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}:${String(dt.getSeconds()).padStart(2, '0')}`
+        : '时间未知';
+    const userName = (user?.name || '未知用户').replace(/</g, '&lt;');
+    const emoji = user?.emoji || '👤';
+    // 垂直对齐第一排（icon 中心约在 wrapper 顶部往下 22px 左右）
+    return `
+        <div class="absolute z-10 group/author" style="top:25px; right:14px; transform: translateY(-50%);">
+            <span class="block w-1.5 h-1.5 rounded-full ${dotColor}"></span>
+            <div class="pointer-events-none opacity-0 group-hover/author:opacity-100 transition-opacity absolute right-0 top-full mt-1.5 z-20 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                    <span class="emoji-glyph text-xl leading-none">${emoji}</span>
+                    <div class="text-left">
+                        <p class="text-xs font-semibold ${nameColor}">${userName}${isMe ? ' （我）' : ''}</p>
+                        <p class="text-[10px] text-gray-500">${fullDate}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderTodoItem(taskId, todo, opts = {}) {
     const { completed = false, grouped = false, animated = false, editing = false } = opts;
     const isMobile = !!state.ui.isMobile;
@@ -130,6 +162,7 @@ function renderTodoItem(taskId, todo, opts = {}) {
                 ${isMobile ? renderTodoActions(taskId, todo) : ''}
             </div>
             ${isMobile ? '' : renderTodoActions(taskId, todo)}
+            ${renderTodoAuthorBadge(todo)}
         </div>
     `;
 }
@@ -399,10 +432,15 @@ function RenderSidebar(options = {}) {
                     <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Projects</span>
                     <button onclick="window.dispatch('initNewProject')" class="ml-auto inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm" title="新建项目">${Icon('plus', '', 14)} 新建项目</button>
                 </div>
-                <div class="space-y-1" 
+                <div class="space-y-1"
                      id="projects-container"
                      ondragover="window.dispatch('projectContainerDragOver', event)"
-                     ondrop="window.dispatch('projectContainerDrop', event)">${projectsHtml}</div>
+                     ondrop="window.dispatch('projectContainerDrop', event)">${projectsHtml || (state.ui.projectsLoading ? `
+                        <div class="px-4 py-6 flex flex-col items-center text-gray-400 text-xs gap-2">
+                            ${Icon('loader-2', 'animate-spin', 18)}
+                            <span>正在加载你的项目…</span>
+                        </div>
+                     ` : '')}</div>
             </div>
             <div class="relative border-t border-gray-200 bg-[#f3f4f6]">
                 <div class="h-16 flex items-center px-4">
@@ -430,7 +468,7 @@ function RenderMobileMainShell() {
             ${RenderMain()}
             ${state.activeView?.type !== 'welcome' ? `
                 <button onclick="window.dispatch('goMobileSidebar')"
-                    class="fixed top-4 left-4 z-[85] inline-flex items-center gap-1 px-1 py-1 text-sm font-semibold text-gray-600 hover:text-gray-900 active:scale-95 transition-all">
+                    class="fixed top-3 left-3 z-[85] inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold text-gray-700 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full shadow-sm hover:bg-white hover:text-gray-900 active:scale-95 transition-all">
                     ${Icon('chevron-left', '', 16)} 项目列表
                 </button>
             ` : ''}

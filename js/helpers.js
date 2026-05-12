@@ -84,8 +84,13 @@ function restoreScroll() {
 }
 
 // --- View Helpers ---
-const Icon = (name, cls = "", size = 16, fill = "none", color) =>
-    `<i data-lucide="${name}" class="${cls}" style="width:${size}px; height:${size}px; ${color ? `color:${color};` : ''} ${fill !== 'none' ? `fill:${fill};` : ''}"></i>`;
+// Lucide 新版移除了 github 图标，这里用内联 SVG 兜底。
+const Icon = (name, cls = "", size = 16, fill = "none", color) => {
+    if (name === 'github') {
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="${cls}" style="width:${size}px; height:${size}px; ${color ? `color:${color};` : ''}" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.5 5.73.5 12.02c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.87-1.54-3.87-1.54-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.23 2.77.11 3.06.73.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14 0 1.54-.01 2.78-.01 3.16 0 .31.21.68.8.56C20.21 21.4 23.5 17.1 23.5 12.02 23.5 5.73 18.27.5 12 .5Z"/></svg>`;
+    }
+    return `<i data-lucide="${name}" class="${cls}" style="width:${size}px; height:${size}px; ${color ? `color:${color};` : ''} ${fill !== 'none' ? `fill:${fill};` : ''}"></i>`;
+};
 
 // --- Custom Modals & Toasts ---
 window.showAlert = (msg) => {

@@ -40,6 +40,7 @@ function assertAdmin(request) {
 /**
  * createActivationCodes
  * 生成一个随机激活码并写入 Firestore 的 activationCodes 集合
+ * durationDays 表示用户激活后的有效期（默认 90 天），激活码本身在使用前永不过期
  */
 exports.createActivationCodes = onCall(async (request) => {
     assertAdmin(request);
@@ -65,7 +66,7 @@ exports.createActivationCodes = onCall(async (request) => {
 /**
  * deleteActivationCode
  * 删除指定的激活码
- * 已使用且未过期的码不允许删除（保护活跃用户）
+ * 已使用且用户激活尚未过期的码不允许删除（保护活跃用户）
  */
 exports.deleteActivationCode = onCall(async (request) => {
     assertAdmin(request);
@@ -84,15 +85,35 @@ exports.deleteActivationCode = onCall(async (request) => {
 
     const data = docSnap.data();
 
-    // 已使用且未过期 → 不允许删除
-    if (data.usedCount > 0 && data.createdAt) {
-        const createdMs = data.createdAt.toMillis();
-        const expiryMs = createdMs + (data.durationDays || 90) * 86400000;
-        if (Date.now() < expiryMs) {
+    // 已使用且对应用户激活仍有效 → 不允许删除
+    if (data.usedCount > 0) {
+        if (data.userActivationInfinite) {
+            throw new HttpsError(
+                "failed-precondition",
+                "该激活码用户为永久激活，无法删除。请先调整该用户的到期时间。"
+            );
+        }
+        const userExpiresMs = data.userActivationExpiresAt && data.userActivationExpiresAt.toMillis
+            ? data.userActivationExpiresAt.toMillis()
+            : null;
+        if (userExpiresMs && Date.now() < userExpiresMs) {
             throw new HttpsError(
                 "failed-precondition",
                 "该激活码已被使用且尚未过期，无法删除。请等待过期后再删除。"
             );
+        }
+        // 旧数据回退：按 usedAt 或 createdAt + durationDays 计算
+        if (!userExpiresMs) {
+            const baseMs = data.usedAt && data.usedAt.toMillis
+                ? data.usedAt.toMillis()
+                : (data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0);
+            const expiryMs = baseMs + (data.durationDays || 90) * 86400000;
+            if (baseMs && Date.now() < expiryMs) {
+                throw new HttpsError(
+                    "failed-precondition",
+                    "该激活码已被使用且尚未过期，无法删除。请等待过期后再删除。"
+                );
+            }
         }
     }
 
@@ -104,8 +125,7 @@ exports.deleteActivationCode = onCall(async (request) => {
 /**
  * activateUser
  * 用户输入激活码来激活自己的账号
- * 在用户文档写入 activatedAt + activationExpiresAt
- * 在激活码文档写入 usedCount, usedByUid, usedByEmail, usedAt
+ * 倒计时从用户激活的那一刻开始计算
  */
 exports.activateUser = onCall(async (request) => {
     if (!request.auth) {
@@ -124,6 +144,9 @@ exports.activateUser = onCall(async (request) => {
     const userDoc = await db.collection("users").doc(uid).get();
     if (userDoc.exists) {
         const userData = userDoc.data();
+        if (userData.activationInfinite) {
+            throw new HttpsError("already-exists", "您的账号已经激活，无需重复激活");
+        }
         if (userData.activationExpiresAt && userData.activationExpiresAt.toMillis() > Date.now()) {
             throw new HttpsError("already-exists", "您的账号已经激活，无需重复激活");
         }
@@ -144,15 +167,7 @@ exports.activateUser = onCall(async (request) => {
         throw new HttpsError("resource-exhausted", "该激活码已被使用");
     }
 
-    // 检查是否过期
-    if (codeData.createdAt) {
-        const createdMs = codeData.createdAt.toMillis();
-        const expiryMs = createdMs + (codeData.durationDays || 90) * 86400000;
-        if (Date.now() > expiryMs) {
-            throw new HttpsError("deadline-exceeded", "该激活码已过期");
-        }
-    }
-
+    // 激活码在使用前永不过期；倒计时从此刻开始
     const now = admin.firestore.Timestamp.now();
     const durationMs = (codeData.durationDays || 90) * 86400000;
     const expiresAt = admin.firestore.Timestamp.fromMillis(now.toMillis() + durationMs);
@@ -163,15 +178,18 @@ exports.activateUser = onCall(async (request) => {
     batch.update(db.collection("users").doc(uid), {
         activatedAt: now,
         activationExpiresAt: expiresAt,
+        activationInfinite: false,
         activationCode: code.toUpperCase(),
     });
 
-    // 更新激活码文档
+    // 更新激活码文档（写入用户到期时间以供管理面板展示）
     batch.update(codeRef, {
         usedCount: 1,
         usedByUid: uid,
         usedByEmail: email,
         usedAt: now,
+        userActivationExpiresAt: expiresAt,
+        userActivationInfinite: false,
     });
 
     await batch.commit();
@@ -184,8 +202,64 @@ exports.activateUser = onCall(async (request) => {
 });
 
 /**
+ * setUserActivationExpiry
+ * 管理员调整某个用户的激活到期时间，可设置为指定时间或永久
+ * 入参：{ uid: string, expiresAt?: number(millis), infinite?: boolean }
+ */
+exports.setUserActivationExpiry = onCall(async (request) => {
+    assertAdmin(request);
+
+    const { uid, expiresAt, infinite } = request.data || {};
+    if (!uid || typeof uid !== "string") {
+        throw new HttpsError("invalid-argument", "缺少用户 UID");
+    }
+
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+        throw new HttpsError("not-found", "用户不存在");
+    }
+
+    const userUpdates = {};
+    const codeUpdates = {};
+
+    if (infinite) {
+        userUpdates.activationInfinite = true;
+        userUpdates.activationExpiresAt = admin.firestore.FieldValue.delete();
+        codeUpdates.userActivationInfinite = true;
+        codeUpdates.userActivationExpiresAt = admin.firestore.FieldValue.delete();
+    } else {
+        const ms = Number(expiresAt);
+        if (!ms || isNaN(ms)) {
+            throw new HttpsError("invalid-argument", "无效的到期时间");
+        }
+        const ts = admin.firestore.Timestamp.fromMillis(ms);
+        userUpdates.activationInfinite = false;
+        userUpdates.activationExpiresAt = ts;
+        codeUpdates.userActivationInfinite = false;
+        codeUpdates.userActivationExpiresAt = ts;
+    }
+
+    await userRef.update(userUpdates);
+
+    // 同步到对应的激活码文档（如有）
+    const userData = userSnap.data();
+    const code = userData.activationCode;
+    if (code) {
+        const codeRef = db.collection("activationCodes").doc(code);
+        const codeSnap = await codeRef.get();
+        if (codeSnap.exists) {
+            await codeRef.update(codeUpdates);
+        }
+    }
+
+    return { success: true };
+});
+
+/**
  * cleanExpiredCodes
- * 管理员调用，删除所有已过期超过 24 小时的激活码
+ * 管理员调用，删除已使用且对应用户激活过期超过 24 小时的激活码
+ * 未使用的激活码永不自动删除
  */
 exports.cleanExpiredCodes = onCall(async (request) => {
     assertAdmin(request);
@@ -197,15 +271,21 @@ exports.cleanExpiredCodes = onCall(async (request) => {
 
     snapshot.docs.forEach((doc) => {
         const data = doc.data();
-        if (data.createdAt) {
-            const createdMs = data.createdAt.toMillis();
-            const expiryMs = createdMs + (data.durationDays || 90) * 86400000;
-            const gracePeriodMs = expiryMs + 24 * 3600000; // 过期后 24 小时
+        if (!data.usedCount || data.usedCount <= 0) return; // 未使用永不清理
+        if (data.userActivationInfinite) return; // 永久激活不清理
 
-            if (now > gracePeriodMs) {
-                batch.delete(doc.ref);
-                deletedCount++;
-            }
+        let expiryMs = null;
+        if (data.userActivationExpiresAt && data.userActivationExpiresAt.toMillis) {
+            expiryMs = data.userActivationExpiresAt.toMillis();
+        } else if (data.usedAt && data.usedAt.toMillis) {
+            expiryMs = data.usedAt.toMillis() + (data.durationDays || 90) * 86400000;
+        } else if (data.createdAt && data.createdAt.toMillis) {
+            expiryMs = data.createdAt.toMillis() + (data.durationDays || 90) * 86400000;
+        }
+
+        if (expiryMs && now > expiryMs + 24 * 3600000) {
+            batch.delete(doc.ref);
+            deletedCount++;
         }
     });
 

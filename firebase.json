@@ -10,8 +10,14 @@
     "ignore": [
       "firebase.json",
       "**/.*",
+      ".*/**",
+      "**/.*/**",
       "**/node_modules/**",
-      "functions/**"
+      "functions/**",
+      ".claude/**",
+      ".firebase/**",
+      ".git/**",
+      ".vscode/**"
     ]
   },
   "functions": [

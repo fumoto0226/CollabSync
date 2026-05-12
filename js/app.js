@@ -3,16 +3,28 @@ function Render() {
     saveScroll(); // Save scroll position before update
 
     // Capture current caret position in todo editor before re-render.
+    // 用结构路径（childNode 索引）而不是纯文本长度，避免末尾换行后光标无法落到新行。
     const prevEditor = document.getElementById('todo-editor');
-    let prevEditorCaret = null;
+    let prevEditorCaretPath = null;
+    let prevEditorCaretOffset = 0;
     if (prevEditor) {
         const sel = window.getSelection();
         if (sel && sel.rangeCount && prevEditor.contains(sel.anchorNode)) {
-            const range = sel.getRangeAt(0).cloneRange();
-            const pre = range.cloneRange();
-            pre.selectNodeContents(prevEditor);
-            pre.setEnd(range.startContainer, range.startOffset);
-            prevEditorCaret = pre.toString().length;
+            const range = sel.getRangeAt(0);
+            const path = [];
+            let node = range.startContainer;
+            while (node && node !== prevEditor) {
+                const parent = node.parentNode;
+                if (!parent) { path.length = 0; break; }
+                const idx = Array.prototype.indexOf.call(parent.childNodes, node);
+                if (idx < 0) { path.length = 0; break; }
+                path.unshift(idx);
+                node = parent;
+            }
+            if (node === prevEditor) {
+                prevEditorCaretPath = path;
+                prevEditorCaretOffset = range.startOffset;
+            }
         }
     }
 
@@ -69,31 +81,30 @@ function Render() {
         if (editor.innerHTML !== state.ui.editorContent) {
             editor.innerHTML = state.ui.editorContent;
         }
-        // Restore caret to previous position instead of forcing to end.
-        if (prevEditorCaret !== null) {
-            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
-            let remaining = prevEditorCaret;
-            let targetNode = null;
-            let targetOffset = 0;
-            let node;
-            while ((node = walker.nextNode())) {
-                const len = (node.textContent || '').length;
-                if (remaining <= len) {
-                    targetNode = node;
-                    targetOffset = Math.max(0, Math.min(remaining, len));
-                    break;
-                }
-                remaining -= len;
+        // Restore caret using the structural path captured before re-render.
+        if (prevEditorCaretPath) {
+            let target = editor;
+            let ok = true;
+            for (const idx of prevEditorCaretPath) {
+                if (!target.childNodes || !target.childNodes[idx]) { ok = false; break; }
+                target = target.childNodes[idx];
             }
-            const sel = window.getSelection();
             const range = document.createRange();
-            if (targetNode) {
-                range.setStart(targetNode, targetOffset);
-            } else {
+            try {
+                if (ok && target.nodeType === Node.TEXT_NODE) {
+                    range.setStart(target, Math.min(prevEditorCaretOffset, (target.textContent || '').length));
+                } else if (ok) {
+                    range.setStart(target, Math.min(prevEditorCaretOffset, target.childNodes ? target.childNodes.length : 0));
+                } else {
+                    range.selectNodeContents(editor);
+                    range.collapse(false);
+                }
+            } catch (e) {
                 range.selectNodeContents(editor);
                 range.collapse(false);
             }
             range.collapse(true);
+            const sel = window.getSelection();
             sel.removeAllRanges();
             sel.addRange(range);
         }
