@@ -1132,6 +1132,78 @@ const Actions = {
             Render();
         }
     },
+    completeGithubWithoutSync: async (tid) => {
+        const { db, doc, updateDoc } = window.fb;
+        const t = state.tasks.find(task => task.id === tid);
+        if (!t?.github?.enabled) {
+            alert('当前任务还没有链接 GitHub 仓库');
+            return;
+        }
+
+        let note = '';
+        const noteInput = document.getElementById(`upload-comment-${tid}`);
+        if (noteInput) {
+            note = noteInput.value.trim();
+        }
+
+        const now = Date.now();
+        const nextVer = (t.file?.version || 0) + 1;
+        const duration = t.lockedAt ? now - t.lockedAt : 0;
+        const branch = t.github.branch || 'main';
+        const sizeLabel = `${branch} 分支，未同步 GitHub 版本`;
+
+        if (t.lockedAt) {
+            t.activities.unshift({
+                type: 'upload',
+                source: 'github-unsynced',
+                provider: 'github',
+                userId: state.currentUser.uid,
+                timestamp: now,
+                duration,
+                version: nextVer,
+                size: sizeLabel,
+                note,
+                repoUrl: t.github.repoUrl,
+                owner: t.github.owner,
+                repo: t.github.repo,
+                branch,
+                synced: false
+            });
+        }
+
+        t.file = {
+            name: 'GitHub 仓库快照（未同步）',
+            size: sizeLabel,
+            lastUpdated: new Date(now).toISOString(),
+            version: nextVer,
+            note,
+            source: 'github-unsynced',
+            provider: 'github',
+            repoUrl: t.github.repoUrl,
+            owner: t.github.owner,
+            repo: t.github.repo,
+            branch,
+            synced: false
+        };
+        t.isLocked = false;
+        t.lockedBy = null;
+        t.lockedAt = null;
+
+        try {
+            await updateDoc(doc(db, 'tasks', tid), {
+                file: t.file,
+                activities: t.activities,
+                isLocked: false,
+                lockedBy: null,
+                lockedAt: null
+            });
+        } catch (err) {
+            console.warn('记录未同步 GitHub 版本失败（本地仍已更新）:', err);
+        }
+
+        state.ui.actionModalTaskId = null;
+        Render();
+    },
 
     // Locking & Uploading
     startTask: async (tid, version) => {
@@ -1172,12 +1244,15 @@ const Actions = {
         let downloadURL = null;
         let storagePath = null;
         let githubMeta = null;
+        let unsyncedGithubMeta = null;
 
         if (Number(t.file.version) === targetVer) {
             downloadURL = t.file.downloadURL;
             storagePath = t.file.path;
             if (t.file.source === 'github') {
                 githubMeta = t.file;
+            } else if (t.file.source === 'github-unsynced') {
+                unsyncedGithubMeta = t.file;
             }
         } else if (t.activities && t.activities.length) {
             const act = t.activities.find(a =>
@@ -1189,8 +1264,19 @@ const Actions = {
                 storagePath = act.path;
                 if (act.source === 'github') {
                     githubMeta = act;
+                } else if (act.source === 'github-unsynced') {
+                    unsyncedGithubMeta = act;
                 }
             }
+        }
+
+        if (unsyncedGithubMeta) {
+            const repoUrl = unsyncedGithubMeta.repoUrl || t.github?.repoUrl;
+            alert(`这个版本没有同步 GitHub，系统里没有可下载的快照。请前往 GitHub 仓库自行下载最新文件：${repoUrl || '请查看任务绑定的 GitHub 仓库'}`);
+            if (repoUrl) {
+                window.open(repoUrl, '_blank', 'noopener,noreferrer');
+            }
+            return;
         }
 
         if (!downloadURL && !storagePath && !githubMeta) {

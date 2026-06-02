@@ -898,16 +898,23 @@ function RenderMain() {
                             
                             <h3 class="text-xl font-bold text-gray-800 mb-1">
                                 ${t.file?.version > 0
-            ? (t.file?.source === 'github' ? 'GitHub 仓库快照' : t.file.name)
+            ? (t.file?.source === 'github' || t.file?.source === 'github-unsynced' ? t.file.name || 'GitHub 仓库快照' : t.file.name)
             : "暂无文件"}
                             </h3>
                             <p class="text-sm text-gray-500 font-medium">
                                 ${t.file?.version > 0
-            ? (t.file?.source === 'github'
+            ? (t.file?.source === 'github-unsynced'
+                ? `v${t.file.version} <span class="ml-1 text-[11px] font-semibold text-amber-600">GitHub 未同步</span> • ${t.file.branch || 'main'} 分支 • 需要去 GitHub 下载最新文件 • ${new Date(t.file.lastUpdated).toLocaleDateString()}`
+                : t.file?.source === 'github'
                 ? `v${t.file.version} <span class="ml-1 text-[11px] font-semibold text-blue-600">GitHub</span> • ${t.file.branch || 'main'} 分支 • commit ${String(t.file.commitSha || '').slice(0, 7)} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`
                 : `v${t.file.version} • ${t.file.size} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`)
             : (githubLink ? '尚未记录 GitHub 版本' : '尚未上传文件')}
                             </p>
+                            ${t.file?.source === 'github-unsynced' ? `
+                                <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                    这个版本未同步 GitHub，系统没有保存快照。下载或开始占用时请前往 GitHub 仓库获取最新文件。
+                                </div>
+                            ` : ''}
                             ${t.file?.note ? `<p class="mt-1 text-xs text-gray-500 max-w-xl text-center">备注：${t.file.note}</p>` : ''}
                             <div class="h-4"></div>
                             

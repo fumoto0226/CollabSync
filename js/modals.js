@@ -321,6 +321,15 @@ function RenderModals() {
                             class="w-full flex items-center justify-center px-4 py-3 ${githubLinked ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-95">
                             ${state.ui.isUploading ? Icon('loader-2', 'mr-2 animate-spin', 18) : Icon(primaryActionIcon, 'mr-2', 18)} ${primaryActionLabel}
                         </button>
+                        ${githubLinked ? `
+                        <button onclick="window.dispatch('completeGithubWithoutSync', '${t.id}')" 
+                            class="w-full flex items-center justify-center px-4 py-3 bg-white border-2 border-amber-200 text-amber-700 rounded-xl text-sm font-bold hover:bg-amber-50 hover:border-amber-300 transition-all active:scale-95">
+                            ${Icon('check-circle-2', 'mr-2', 18)} 直接完成（不同步 GitHub）
+                        </button>
+                        <p class="text-[11px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                            这个操作只会解锁并记录完成，不会保存 GitHub 快照。成员下载时会提示前往 GitHub 自行获取最新文件。
+                        </p>
+                        ` : ''}
                         <input type="file" id="modal-file-upload-${t.id}" class="hidden" onchange="window.dispatch('uploadFile', '${t.id}', this)">
 
                         <div>
@@ -356,7 +365,8 @@ function RenderModals() {
                 isLatest: true,
                 source: t.file.source || 'storage',
                 branch: t.file.branch || '',
-                commitSha: t.file.commitSha || ''
+                commitSha: t.file.commitSha || '',
+                synced: t.file.synced !== false
             });
         }
         (t?.activities || []).forEach(act => {
@@ -369,7 +379,8 @@ function RenderModals() {
                     isLatest: false,
                     source: act.source || 'storage',
                     branch: act.branch || '',
-                    commitSha: act.commitSha || ''
+                    commitSha: act.commitSha || '',
+                    synced: act.synced !== false
                 });
             }
         });
@@ -382,7 +393,7 @@ function RenderModals() {
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
                         <div>
                             <h3 class="text-xl font-bold text-gray-800">开始占用</h3>
-                            <p class="text-sm text-gray-500 mt-1 font-mono">${t?.file?.source === 'github' ? 'GitHub 仓库快照' : (t?.file?.name || 'File')}</p>
+                            <p class="text-sm text-gray-500 mt-1 font-mono">${t?.file?.source === 'github-unsynced' ? 'GitHub 仓库快照（未同步）' : (t?.file?.source === 'github' ? 'GitHub 仓库快照' : (t?.file?.name || 'File'))}</p>
                         </div>
                         <button onclick="window.dispatch('closeStartModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
                     </div>
@@ -415,22 +426,26 @@ function RenderModals() {
                                             <div class="flex items-center gap-2">
                                                 <h4 class="text-lg font-bold text-gray-800">v${v.version}</h4>
                                                 ${v.source === 'github' ? '<span class="text-[11px] font-semibold text-blue-600">GitHub</span>' : ''}
+                                                ${v.source === 'github-unsynced' ? '<span class="text-[11px] font-semibold text-amber-600">GitHub 未同步</span>' : ''}
                                                 ${v.isLatest ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
-                                                ${v.source === 'github'
+                                                ${v.source === 'github-unsynced'
+                    ? `<span>${v.branch || 'main'} 分支</span> • <span>需要去 GitHub 下载最新文件</span>`
+                    : v.source === 'github'
                     ? `<span>commit ${String(v.commitSha || '').slice(0, 7)}</span> • <span>${formatDate(v.ts)}</span>`
                     : `<span>${formatDate(v.ts)}</span> • <span>${v.size}</span>`}
                                             </p>
+                                            ${v.source === 'github-unsynced' ? '<p class="mt-1 text-xs text-amber-600">这个版本没有保存系统快照。</p>' : ''}
                                             ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">备注：${v.note}</p>` : ''}
                                         </div>
                                     </div>
                                     ${t?.isLocked
                 ? `<button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                                            ${Icon('download', 'mr-2', 14)} ${v.source === 'github' ? '从 GitHub 下载' : '仅下载'}
+                                            ${Icon('download', 'mr-2', 14)} ${v.source === 'github' ? '从 GitHub 下载' : (v.source === 'github-unsynced' ? '查看提示' : '仅下载')}
                                         </button>`
                 : `<button onclick="window.dispatch('startTaskWithDownload', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm">
-                                            ${Icon('download', 'mr-2', 14)} 下载并占用
+                                            ${Icon('download', 'mr-2', 14)} ${v.source === 'github-unsynced' ? '查看提示并占用' : '下载并占用'}
                                         </button>`
             }
                                 </div>
@@ -461,7 +476,8 @@ function RenderModals() {
                 isLatest: true,
                 source: t.file.source || 'storage',
                 branch: t.file.branch || '',
-                commitSha: t.file.commitSha || ''
+                commitSha: t.file.commitSha || '',
+                synced: t.file.synced !== false
             });
         }
         (t.activities || []).forEach(act => {
@@ -475,7 +491,8 @@ function RenderModals() {
                         isLatest: false,
                         source: act.source || 'storage',
                         branch: act.branch || '',
-                        commitSha: act.commitSha || ''
+                        commitSha: act.commitSha || '',
+                        synced: act.synced !== false
                     });
                 }
             }
@@ -492,7 +509,7 @@ function RenderModals() {
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
                         <div>
                             <h3 class="text-xl font-bold text-gray-800">版本选择</h3>
-                            <p class="text-sm text-gray-500 mt-1 font-mono">${t.file?.source === 'github' ? 'GitHub 仓库快照' : (t.file?.name || 'File History')}</p>
+                            <p class="text-sm text-gray-500 mt-1 font-mono">${t.file?.source === 'github-unsynced' ? 'GitHub 仓库快照（未同步）' : (t.file?.source === 'github' ? 'GitHub 仓库快照' : (t.file?.name || 'File History'))}</p>
                         </div>
                         <button onclick="window.dispatch('closeHistoryModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
                     </div>
@@ -538,19 +555,23 @@ function RenderModals() {
                                             <div class="flex items-center gap-2">
                                                 <h4 class="text-lg font-bold text-gray-800">v${v.version}</h4>
                                                 ${v.source === 'github' ? '<span class="text-[11px] font-semibold text-blue-600">GitHub</span>' : ''}
+                                                ${v.source === 'github-unsynced' ? '<span class="text-[11px] font-semibold text-amber-600">GitHub 未同步</span>' : ''}
                                                 ${v.isLatest ? '<span class="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
-                                                ${v.source === 'github'
+                                                ${v.source === 'github-unsynced'
+                    ? `<span>${v.branch || 'main'} 分支</span> • <span>需要去 GitHub 下载最新文件</span>`
+                    : v.source === 'github'
                     ? `<span>commit ${String(v.commitSha || '').slice(0, 7)}</span> • <span>${formatDate(v.ts)}</span>`
                     : `<span>${formatDate(v.ts)}</span> • <span>${v.size}</span>`}
                                             </p>
+                                            ${v.source === 'github-unsynced' ? '<p class="mt-1 text-xs text-amber-600">这个版本没有保存系统快照。</p>' : ''}
                                             ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">备注：${v.note}</p>` : ''}
                                         </div>
                                     </div>
 
                                     <button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                                        ${Icon('download', 'mr-2', 14)} 仅下载
+                                        ${Icon('download', 'mr-2', 14)} ${v.source === 'github-unsynced' ? '查看提示' : '仅下载'}
                                     </button>
                                 </div>
                             `).join('')}
