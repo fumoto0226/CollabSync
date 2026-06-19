@@ -136,12 +136,17 @@ function Render() {
 
 function syncResponsiveLayout() {
     const isMobile = window.innerWidth < 768;
-    if (state.ui.isMobile === isMobile) return;
-    state.ui.isMobile = isMobile;
-    state.ui.mobilePane = isMobile
-        ? (state.activeView?.type === 'welcome' ? 'sidebar' : 'main')
-        : 'main';
-    Render();
+    let needRender = false;
+    if (state.ui.isMobile !== isMobile) {
+        state.ui.isMobile = isMobile;
+        state.ui.mobilePane = isMobile
+            ? (state.activeView?.type === 'welcome' ? 'sidebar' : 'main')
+            : 'main';
+        needRender = true;
+    }
+    // 甘特图打开时，根据窗口大小自适应日期/行数，需要随尺寸变化重渲染
+    if (state.ui.ganttModal?.mode) needRender = true;
+    if (needRender) Render();
 }
 
 // Global Dispatcher

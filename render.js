@@ -287,7 +287,7 @@ function RenderSidebar(options = {}) {
                 ${
                     sortedTasks.length === 0
                         ? `<button onclick="event.stopPropagation(); window.dispatch('initNewTask', '${p.id}')" class="w-full flex items-center px-3 py-2 text-xs text-gray-400 hover:bg-gray-200 rounded-md transition-colors">
-                                ${Icon('plus', 'mr-2', 12)} ${L('sidebar.newTask')}
+                                ${Icon('plus', 'mr-2', 12)} 新建任务
                            </button>`
                         : ''
                 }
@@ -309,11 +309,11 @@ function RenderSidebar(options = {}) {
                     if (isTextTask) {
                         const progressActs = (t.activities || []).filter(a => a.type === 'progress');
                         const maxVer = progressActs.reduce((m, a) => Math.max(m, a.version || 0), 0);
-                        versionLabel = maxVer > 0 ? `v${maxVer}` : L('taskcard.notStarted');
+                        versionLabel = maxVer > 0 ? `v${maxVer}` : '未开始';
                     } else {
                         versionLabel = t.file && t.file.version > 0
                             ? `v${t.file.version}`
-                            : (t.github?.enabled ? L('file.sidebarNoGithub') : L('file.sidebarNotUploaded'));
+                            : (t.github?.enabled ? '未记录' : '未上传');
                     }
 
                     const durationStr = locker ? getDuration(t.lockedAt) : '00:00';
@@ -383,7 +383,7 @@ function RenderSidebar(options = {}) {
                         ${(!expanded && hiddenCount > 0) ? `<div class="w-5 h-5 rounded-full border border-white bg-gray-200 text-[8px] flex items-center justify-center text-gray-600 font-bold">+${hiddenCount}</div>` : ''}
                     </div>
                     
-                    <button onclick="event.stopPropagation(); window.dispatch('initNewTask', '${p.id}')" class="ml-1 opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded-full text-gray-500 transition-opacity" title="${L('sidebar.newTask')}">
+                    <button onclick="event.stopPropagation(); window.dispatch('initNewTask', '${p.id}')" class="ml-1 opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded-full text-gray-500 transition-opacity" title="新建任务">
                         ${Icon('plus', '', 14)}
                     </button>
 
@@ -467,7 +467,7 @@ function RenderSidebar(options = {}) {
                                         <span class="ml-auto text-[11px] text-gray-400">${state.locale === 'ja' ? '日本語' : '简体中文'}</span>
                                     </button>
                                     ${state.ui.languagePickerOpen ? `
-                                        <div class="absolute left-full bottom-0 ml-1 bg-white border border-gray-200 rounded-xl shadow-2xl py-1.5 w-40">
+                                        <div class="absolute right-full top-0 mr-1 bg-white border border-gray-200 rounded-xl shadow-2xl py-1.5 w-40">
                                             <button onclick="window.dispatch('setLocale', 'zh')" class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${state.locale === 'zh' ? 'text-indigo-600 font-semibold' : 'text-gray-700'}">
                                                 ${state.locale === 'zh' ? Icon('check', '', 14) : '<span class="w-3.5 inline-block"></span>'} ${L('settings.languageZh')}
                                             </button>
@@ -530,34 +530,34 @@ function RenderMain() {
                 <div class="bg-white w-full max-w-2xl rounded-2xl shadow-lg border border-gray-200 overflow-hidden fade-in">
                     <div class="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <div>
-                            <h2 class="text-xl font-bold text-gray-800">${L('newProject.title')}</h2>
-                            <p class="text-sm text-gray-500 mt-1">${L('newProject.subtitle')}</p>
+                            <h2 class="text-xl font-bold text-gray-800">新建项目</h2>
+                            <p class="text-sm text-gray-500 mt-1">创建一个新的协作空间</p>
                         </div>
                         <button onclick="window.dispatch('cancelCreation')" class="p-2 hover:bg-gray-200 rounded-full text-gray-400 transition-colors">${Icon('x', '', 20)}</button>
                     </div>
                     
                     <div class="p-8 space-y-6">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">${L('newProject.nameLabel')}</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">项目名称</label>
                             <input type="text" value="${draft.name}" oninput="window.dispatch('updateDraft', 'name', this.value)"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow" placeholder="${L('newProject.namePlaceholder')}">
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow" placeholder="例如: 2024 年度营销计划">
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">${L('newProject.descLabel')}</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">描述 (可选)</label>
                             <textarea rows="3" oninput="window.dispatch('updateDraft', 'desc', this.value)"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow" placeholder="${L('newProject.descPlaceholder')}">${draft.desc}</textarea>
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow" placeholder="简单描述项目目标...">${draft.desc}</textarea>
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">${L('newProject.membersLabel')}</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">添加成员</label>
                             <div class="flex items-center gap-2 mb-3">
                                 <div class="relative flex-1">
                                     ${Icon('search', 'absolute left-3 top-3 text-gray-400', 18)}
-                                    <input type="text" value="${draft.memberSearchInput}"
+                                    <input type="text" value="${draft.memberSearchInput}" 
                                         oninput="window.dispatch('updateDraft', 'memberSearchInput', this.value)"
                                         onkeydown="if(event.key==='Enter') window.dispatch('draftSearchMember')"
-                                        class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500" placeholder="${L('newProject.memberSearchPlaceholder')}">
+                                        class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500" placeholder="输入用户邮箱搜索...">
                                 </div>
-                                <button onclick="window.dispatch('draftSearchMember')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">${L('newProject.searchBtn')}</button>
+                                <button onclick="window.dispatch('draftSearchMember')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">搜索</button>
                             </div>
                             ${state.ui.draftSearchResult ? (state.ui.draftSearchResult.found ? `
                                 <div class="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
@@ -568,17 +568,17 @@ function RenderMain() {
                                             <p class="text-xs text-gray-500">${state.ui.draftSearchResult.user.email}</p>
                                         </div>
                                     </div>
-                                    <button onclick="window.dispatch('draftAddMember')" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">${L('common.add')}</button>
+                                    <button onclick="window.dispatch('draftAddMember')" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">添加</button>
                                 </div>
                             ` : `
                                 <div class="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                                    ${Icon('alert-circle', 'inline mr-2', 16)} ${L('newProject.notFoundHint')}
+                                    ${Icon('alert-circle', 'inline mr-2', 16)} 未找到此用户，请检查邮箱是否正确
                                 </div>
                             `) : ''}
                             <div class="flex flex-wrap gap-2">
                                 <div class="flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100 pr-4">
                                     ${AvatarEmoji(state.currentUser.emoji, 'w-5 h-5 rounded-full mr-2 bg-white', 'text-[12px]')}
-                                    <span class="text-sm font-medium">${L('newProject.youOwner')}</span>
+                                    <span class="text-sm font-medium">我 (Owner)</span>
                                 </div>
                                 ${draft.members.map(m => `
                                     <div class="flex items-center bg-white text-gray-700 px-2 py-1.5 rounded-full border border-gray-200 shadow-sm pr-2">
@@ -590,8 +590,8 @@ function RenderMain() {
                             </div>
                         </div>
                         <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                            <button onclick="window.dispatch('cancelCreation')" class="px-6 py-2.5 rounded-xl text-gray-500 font-medium hover:bg-gray-100 transition-colors">${L('common.cancel')}</button>
-                            <button onclick="window.dispatch('submitNewProject')" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-md transform active:scale-95 transition-all">${L('newProject.submit')}</button>
+                            <button onclick="window.dispatch('cancelCreation')" class="px-6 py-2.5 rounded-xl text-gray-500 font-medium hover:bg-gray-100 transition-colors">取消</button>
+                            <button onclick="window.dispatch('submitNewProject')" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-md transform active:scale-95 transition-all">创建项目</button>
                         </div>
                     </div>
                 </div>
@@ -609,9 +609,9 @@ function RenderMain() {
                     <div class="bg-white w-full max-w-2xl mx-auto rounded-2xl shadow-lg border border-gray-200 overflow-hidden fade-in">
                         <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <div class="flex items-center gap-3">
-                                <h2 class="text-lg font-bold text-gray-800">${L('newTask.title')}</h2>
+                                <h2 class="text-lg font-bold text-gray-800">新建任务</h2>
                                 <span class="text-xs text-gray-500">·</span>
-                                <p class="text-xs text-gray-500">${L('newTask.parent')} <span class="font-medium text-gray-800">${project?.name}</span></p>
+                                <p class="text-xs text-gray-500">所属: <span class="font-medium text-gray-800">${project?.name}</span></p>
                             </div>
                             <button onclick="window.dispatch('cancelCreation')" class="p-1.5 hover:bg-gray-200 rounded-full text-gray-400 transition-colors">${Icon('x', '', 18)}</button>
                         </div>
@@ -619,59 +619,59 @@ function RenderMain() {
                         <div class="p-6 space-y-5">
                             <div class="flex items-end gap-4">
                                 <div class="flex-1">
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">${L('newTask.nameLabel')}</label>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">任务名称</label>
                                     <input type="text" value="${draft.name}" oninput="window.dispatch('updateDraft', 'name', this.value)"
-                                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow text-sm" placeholder="${L('newTask.namePlaceholder')}">
+                                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow text-sm" placeholder="例如: 首页 UI 设计">
                                 </div>
                                 <div class="flex-shrink-0">
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">${L('newTask.kindLabel')}</label>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">任务类型</label>
                                     <div class="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
                                         <button onclick="window.dispatch('updateDraft', 'kind', 'text')"
                                             class="px-3 py-1.5 rounded-lg transition-all ${draft.kind === 'text' || !draft.kind ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-800'}">
-                                            ${L('newTask.kindText')}
+                                            无文件任务
                                         </button>
                                         <button onclick="window.dispatch('updateDraft', 'kind', 'file')"
                                             class="px-3 py-1.5 rounded-lg transition-all ${draft.kind === 'file' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-800'}">
-                                            ${L('newTask.kindFile')}
+                                            有文件任务
                                         </button>
                                     </div>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">${L('newTask.descLabel')}</label>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">任务详情</label>
                                 <textarea rows="3" oninput="window.dispatch('updateDraft', 'desc', this.value)"
-                                    class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow text-sm resize-none" placeholder="${L('newTask.descPlaceholder')}">${draft.desc}</textarea>
+                                    class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow text-sm resize-none" placeholder="详细描述任务要求...">${draft.desc}</textarea>
                             </div>
                             ${draft.kind === 'file' || !draft.kind ? `
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">${L('newTask.initialFile')}</label>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">初始文件 (可选)</label>
                                 <div class="relative group">
                                     <input type="file" id="draft-file" class="hidden" onchange="window.dispatch('handleDraftFileChange', this.files[0])">
                                     <label for="draft-file" class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors">
                                         <div class="flex flex-col items-center justify-center py-4">
                                             ${draft.file
-                                                ? `<div class="text-blue-600 mb-1">${Icon('file-check', '', 28)}</div><p class="text-xs text-gray-700 font-medium">${draft.file.name}</p><p class="text-[11px] text-gray-500">${L('newTask.changeFile')}</p>`
-                                                : `<div class="text-gray-400 mb-1 group-hover:text-blue-500 transition-colors">${Icon('upload-cloud', '', 28)}</div><p class="text-xs text-gray-500">${L('newTask.uploadHint')}</p>`
+                                                ? `<div class="text-blue-600 mb-1">${Icon('file-check', '', 28)}</div><p class="text-xs text-gray-700 font-medium">${draft.file.name}</p><p class="text-[11px] text-gray-500">点击更换</p>`
+                                                : `<div class="text-gray-400 mb-1 group-hover:text-blue-500 transition-colors">${Icon('upload-cloud', '', 28)}</div><p class="text-xs text-gray-500"><span class="font-semibold">点击上传</span> 或拖拽文件</p>`
                                             }
                                         </div>
                                     </label>
-                                    <p class="mt-1.5 text-[11px] text-gray-400 text-right">${L('newTask.sizeLimit')}</p>
+                                    <p class="mt-1.5 text-[11px] text-gray-400 text-right">单个文件不超过 3MB</p>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">${L('newTask.fileNote')}</label>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">文件备注 (可选)</label>
                                 <textarea rows="2" oninput="window.dispatch('updateDraft', 'fileNote', this.value)"
                                     class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow text-sm resize-none"
-                                    placeholder="${L('newTask.fileNotePlaceholder')}">${draft.fileNote || ''}</textarea>
+                                    placeholder="简单说明这个初始文件的用途，方便团队成员理解">${draft.fileNote || ''}</textarea>
                             </div>
                             ` : `
                             <div class="border border-dashed border-gray-300 rounded-xl p-3 bg-gray-50 text-xs text-gray-500">
-                                ${L('newTask.textNotice')}
+                                这是一个<strong class="font-semibold text-gray-700">无文件任务</strong>，不需要上传/下载文件。可以直接在待办区域记录内容，或通过"完成编辑"添加进度备注。
                             </div>
                             `}
                             <div class="pt-3 border-t border-gray-100 flex justify-end gap-3">
-                                <button onclick="window.dispatch('cancelCreation')" class="px-5 py-2 rounded-xl text-sm text-gray-500 font-medium hover:bg-gray-100 transition-colors">${L('common.cancel')}</button>
-                                <button onclick="window.dispatch('submitNewTask')" class="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md transform active:scale-95 transition-all">${L('newTask.submit')}</button>
+                                <button onclick="window.dispatch('cancelCreation')" class="px-5 py-2 rounded-xl text-sm text-gray-500 font-medium hover:bg-gray-100 transition-colors">取消</button>
+                                <button onclick="window.dispatch('submitNewTask')" class="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md transform active:scale-95 transition-all">创建任务</button>
                             </div>
                         </div>
                     </div>
@@ -712,20 +712,20 @@ function RenderMain() {
                     <div class="flex items-center gap-3 mb-2">
                         <h1 class="text-3xl font-bold text-gray-900"># ${p.name}${p.completed ? ' <span class="text-base text-gray-500 font-semibold">（已完成✅）</span>' : ''}</h1>
                         <button onclick="window.dispatch('openEditProjectModal', '${p.id}')" class="px-2 py-1 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 flex items-center gap-1">
-                            ${Icon('edit-3', '', 14)} ${L('project.editBtn')}
+                            ${Icon('edit-3', '', 14)} 编辑项目
                         </button>
                     </div>
-                    <p class="text-gray-600 mb-6">${translateLegacyLabel(p.description) || L('project.noDescription')}</p>
+                    <p class="text-gray-600 mb-6">${p.description}</p>
                     <div class="flex items-center space-x-2 mb-6">
                         <div class="flex -space-x-2 overflow-hidden cursor-pointer" onclick="window.dispatch('openMemberModal', '${p.id}')">
                             ${members.map(m => `<div onclick="event.stopPropagation(); window.dispatch('openMemberModal', '${p.id}')">${AvatarEmoji(m.emoji, 'inline-block h-8 w-8 rounded-full ring-2 ring-white bg-white', 'text-xl')}</div>`).join('')}
                             <button onclick="event.stopPropagation(); window.dispatch('openMemberModal', '${p.id}')" class="h-8 w-8 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-gray-500 text-xs font-medium hover:bg-gray-200">+</button>
                         </div>
-                        <span class="text-sm text-gray-500 ml-2">${L('project.membersCount', { n: members.length })}</span>
+                        <span class="text-sm text-gray-500 ml-2">${members.length} 位成员</span>
                     </div>
                 </div>
                 <div class="p-8">
-                    <h2 class="text-lg font-bold text-gray-800 mb-4">${L('project.taskBoard')}</h2>
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">任务看板</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         ${pTasks.map(t => {
             const locker = t.isLocked ? state.users.find(u => u.uid === t.lockedBy) : null;
@@ -750,20 +750,20 @@ function RenderMain() {
                                     </div>
                                     <p class="text-sm text-gray-500 mb-4 line-clamp-2 h-10">${t.description}</p>
                                     <div class="flex items-center justify-between mt-auto">
-                                        <div class="text-xs text-gray-400">${L('project.todoCounter', { done: t.todos.filter(x => x.completed).length, total: t.todos.length })}</div>
+                                        <div class="text-xs text-gray-400">${t.todos.filter(x => x.completed).length}/${t.todos.length} 待办</div>
                                         ${t.isLocked && locker ? `
                                             <div onclick="event.stopPropagation(); window.dispatch('openMemberModal', '${p.id}')" class="flex items-center pl-2 py-1 rounded-full text-xs font-medium border ${cardBg} ${cardBorder} cursor-pointer hover:opacity-80">
                                                 <span class="mr-2 ${cardText}">Working</span>
                                                 ${AvatarEmoji(locker.emoji, 'w-5 h-5 rounded-full bg-white', 'text-[12px]')}
                                             </div>
-                                        ` : `<span class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">${L('project.idle')}</span>`}
+                                        ` : `<span class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">空闲</span>`}
                                     </div>
                                 </div>
                             `;
         }).join('')}
                         ${pTasks.length === 0 ? `
                             <button onclick="window.dispatch('initNewTask', '${p.id}')" class="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-gray-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors bg-white/50 h-full min-h-[200px]">
-                                <span class="text-4xl mb-2">+</span><span class="font-medium">${L('sidebar.newTask')}</span>
+                                <span class="text-4xl mb-2">+</span><span class="font-medium">新建任务</span>
                             </button>
                         ` : ''}
                     </div>
@@ -844,11 +844,11 @@ function RenderMain() {
                             <div class="shrink-0">
                                 ${t.isLocked ? `
                                     <div class="px-3 py-2 rounded-full text-xs font-semibold border ${isMe ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-purple-50 text-purple-700 border-purple-200'}">
-                                        ${locker ? `${locker.name} ${L('history.editing')}` : L('history.editing')}
+                                        ${locker ? `${locker.name} 编辑中` : '编辑中'}
                                     </div>
                                 ` : `
                                     <div class="px-3 py-2 rounded-full text-xs font-semibold border border-gray-200 bg-gray-50 text-gray-500">
-                                        ${L('project.idleStatus')}
+                                        空闲中
                                     </div>
                                 `}
                             </div>
@@ -861,7 +861,7 @@ function RenderMain() {
                                     ${t.name}
                                 </h1>
                                 <button onclick="window.dispatch('openEditTaskModal', '${t.id}')" class="px-2 py-1 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 flex items-center gap-1">
-                                    ${Icon('edit-3', '', 14)} ${L('taskcard.editTask')}
+                                    ${Icon('edit-3', '', 14)} 编辑任务
                                 </button>
                             </div>
                             <p class="text-gray-500 mt-1 text-sm">${t.description}</p>
@@ -873,7 +873,7 @@ function RenderMain() {
                                         ${AvatarEmoji(locker.emoji, 'w-10 h-10 rounded-full bg-white', 'text-3xl')}
                                     </div>
                                     <div class="ml-2 flex flex-col justify-center">
-                                        <span class="text-[10px] text-gray-400 font-medium leading-none mb-1">${L('history.editing')}</span>
+                                        <span class="text-[10px] text-gray-400 font-medium leading-none mb-1">正在编辑</span>
                                         <span class="font-bold text-sm leading-none" style="color:${statusColor}">${locker.name}</span>
                                     </div>
                                     <div class="h-8 w-px bg-gray-200 mx-4"></div>
@@ -918,7 +918,7 @@ function RenderMain() {
                                     </button>
                                 ` : `
                                     <div class="text-sm text-gray-500 font-medium">
-                                        ${locker ? `${locker.name} ${L('task.locked')}` : L('task.inProgress')}
+                                        ${locker ? `${locker.name} ${L('task.locked')}` : '...'}
                                     </div>
                                 `}
                             </div>
@@ -934,17 +934,17 @@ function RenderMain() {
                             
                             <h3 class="text-xl font-bold text-gray-800 mb-1">
                                 ${t.file?.version > 0
-            ? (t.file?.source === 'github' ? L('file.githubSnapshot') : t.file.name)
-            : L('file.noFile')}
+            ? (t.file?.source === 'github' ? 'GitHub 仓库快照' : t.file.name)
+            : "暂无文件"}
                             </h3>
                             <p class="text-sm text-gray-500 font-medium">
                                 ${t.file?.version > 0
             ? (t.file?.source === 'github'
-                ? `v${t.file.version} <span class="ml-1 text-[11px] font-semibold text-blue-600">GitHub</span> • ${t.file.branch || 'main'} ${L('file.branch')} • commit ${String(t.file.commitSha || '').slice(0, 7)} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`
-                : `v${t.file.version} • ${translateLegacyLabel(t.file.size)} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`)
-            : (githubLink ? L('file.noGithubVersion') : L('file.notUploaded'))}
+                ? `v${t.file.version} <span class="ml-1 text-[11px] font-semibold text-blue-600">GitHub</span> • ${t.file.branch || 'main'} 分支 • commit ${String(t.file.commitSha || '').slice(0, 7)} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`
+                : `v${t.file.version} • ${t.file.size} • ${new Date(t.file.lastUpdated).toLocaleDateString()}`)
+            : (githubLink ? '尚未记录 GitHub 版本' : '尚未上传文件')}
                             </p>
-                            ${t.file?.note ? `<p class="mt-1 text-xs text-gray-500 max-w-xl text-center">${L('file.note', { note: t.file.note })}</p>` : ''}
+                            ${t.file?.note ? `<p class="mt-1 text-xs text-gray-500 max-w-xl text-center">备注：${t.file.note}</p>` : ''}
                             <div class="h-4"></div>
                             
                             <div class="flex gap-2 mb-4">
@@ -975,7 +975,7 @@ function RenderMain() {
                             ${t.isLocked && locker ? `
                                 <div class="flex items-center px-4 py-1.5 rounded-lg text-sm font-medium animate-pulse
                                     ${isMe ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-purple-100 text-purple-700 border border-purple-200'}">
-                                    ${Icon('lock', 'mr-2', 14)} ${locker.name} ${L('task.locked')}
+                                    ${Icon('lock', 'mr-2', 14)} ${locker.name} 正在占用...
                                 </div>
                             ` : ''}
 
@@ -983,14 +983,14 @@ function RenderMain() {
                                 ${(!t.isLocked && t.file?.version > 0) ? `
                                     <button onclick="window.dispatch('openStartModal', '${t.id}')" 
                                         class="flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-transform active:scale-95 ${t.completed ? 'bg-gray-300 text-gray-600 cursor-not-allowed hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}" ${t.completed ? 'disabled' : ''}>
-                                        ${Icon('download', 'mr-2', 20)} ${t.completed ? L('task.completed') : L('task.startWork')}
+                                        ${Icon('download', 'mr-2', 20)} ${t.completed ? '任务已完成' : '开始占用'}
                                     </button>
                                 ` : ''}
 
                                 ${(!t.isLocked && (!t.file || t.file.version === 0)) ? `
                                     <button onclick="window.dispatch('triggerInitialUpload', '${t.id}')" 
                                         class="flex items-center px-6 py-3 rounded-lg font-medium shadow-md transition-transform active:scale-95 bg-blue-600 text-white hover:bg-blue-700">
-                                        ${state.ui.isUploading ? Icon('loader-2', 'mr-2 animate-spin', 20) : Icon('upload-cloud', 'mr-2', 20)} ${L('file.uploadInitial')}
+                                        ${state.ui.isUploading ? Icon('loader-2', 'mr-2 animate-spin', 20) : Icon('upload-cloud', 'mr-2', 20)} 上传初始文件
                                     </button>
                                     <input type="file" id="initial-file-upload-${t.id}" class="hidden" onchange="window.dispatch('uploadFile', '${t.id}', this)">
                                 ` : ''}
@@ -1007,7 +1007,7 @@ function RenderMain() {
 
                         <div class="${isMobile ? '' : 'bg-white rounded-xl shadow-sm border p-6'}">
                             <div class="flex justify-between items-center ${isMobile ? 'mb-4' : 'mb-6'}">
-                                 <h3 class="text-lg font-bold text-gray-800 flex items-center ${isMobile ? 'px-4' : ''}">${Icon('check-circle-2', 'mr-2 text-indigo-500', 20)} ${L('taskcard.todoHeader')} <span class="ml-2 text-sm text-gray-400 font-semibold">(${completedTodos.length}/${t.todos.length})</span></h3>
+                                 <h3 class="text-lg font-bold text-gray-800 flex items-center ${isMobile ? 'px-4' : ''}">${Icon('check-circle-2', 'mr-2 text-indigo-500', 20)} 待办事项 <span class="ml-2 text-sm text-gray-400 font-semibold">(${completedTodos.length}/${t.todos.length})</span></h3>
                             </div>
                             
                             <div id="todo-editor-panel-${t.id}" class="mb-6 border rounded-xl overflow-visible shadow-sm focus-within:ring-2 ring-indigo-500 transition-all bg-white relative ${isMobile ? 'mx-4' : ''}">
@@ -1035,7 +1035,7 @@ function RenderMain() {
                                 <div class="relative">
                                     <div id="todo-editor" contenteditable="${t.completed ? 'false' : 'true'}" 
                                          class="p-4 min-h-[100px] outline-none text-sm text-gray-800 rich-editor ${t.completed ? 'bg-gray-50' : ''}" 
-                                         placeholder="${t.completed ? L('task.todoCompletedDisabled') : (isMobile ? L('task.todoPlaceholderMobile') : L('task.todoPlaceholder'))}"
+                                         placeholder="${t.completed ? '已完成任务不可编辑' : (isMobile ? '在这里添加新的待办（可点图片按钮从相册添加）' : '在这里添加新的待办（可直接粘贴或拖入图片）')}"
                                          oninput="window.dispatch('updateEditorDraft', '${t.id}', this.innerHTML)"
                                          onpaste="window.dispatch('handleTodoPaste', event, '${t.id}')"
                                          ondragover="window.dispatch('handleTodoDragOver', event)"
@@ -1089,7 +1089,7 @@ function RenderMain() {
                                         ` : `
                                             <button onclick="window.dispatch('addTodo', '${t.id}')" 
                                                 class="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-indigo-700 transition-colors flex items-center ${state.ui.todoSubmitUploading ? 'opacity-60 cursor-not-allowed' : ''}" ${state.ui.todoSubmitUploading ? 'disabled' : ''}>
-                                                ${Icon('plus', 'mr-1.5', 14)} ${L('taskcard.todoAddBtn')}
+                                                ${Icon('plus', 'mr-1.5', 14)} 添加待办
                                             </button>
                                         `}
                                     </div>
@@ -1109,7 +1109,7 @@ function RenderMain() {
                                     </div>
                                 ` : ''}
                                 ${renderTodoGroups(t.id, visibleHiddenOldCompletedTodos, { completed: true, todoAnimKeys, editingTodoId: state.ui.editingTodoId })}
-                                ${t.todos.length === 0 ? `<div class="text-center py-8 text-gray-400 text-sm italic">${L('task.emptyTodos')}</div>` : ''}
+                                ${t.todos.length === 0 ? '<div class="text-center py-8 text-gray-400 text-sm italic">暂无待办</div>' : ''}
                             </div>
                         </div>
                     </div>

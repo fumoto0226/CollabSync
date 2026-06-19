@@ -215,18 +215,18 @@ function RenderModals() {
             <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 fade-in" onclick="if(event.target===this) window.dispatch('closeMemberModal')">
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
-                        <h3 class="text-lg font-bold text-gray-800">${L('memberModal.title')} <span class="ml-2 align-middle text-[10px] font-bold px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-200">${p?.name || ''}</span></h3>
+                        <h3 class="text-lg font-bold text-gray-800">项目成员管理 <span class="ml-2 align-middle text-[10px] font-bold px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-200">${p?.name || ''}</span></h3>
                         <button onclick="window.dispatch('closeMemberModal')" class="text-gray-400 hover:text-gray-600">${Icon('x', '', 24)}</button>
                     </div>
                     <div class="p-6 border-b">
                         <div class="flex gap-3 mb-3">
                             <div class="relative flex-1">
                                 ${Icon('search', 'absolute left-3.5 top-3 text-gray-400', 18)}
-                                <input type="text" placeholder="${L('memberModal.inputEmail')}" value="${state.ui.inviteInput}"
+                                <input type="text" placeholder="输入用户邮箱" value="${state.ui.inviteInput}"
                                     oninput="state.ui.inviteInput = this.value" onkeydown="if(event.key==='Enter') window.dispatch('inviteSearchMember')"
                                     class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
-                            <button onclick="window.dispatch('inviteSearchMember')" class="bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 shadow-sm">${L('newProject.searchBtn')}</button>
+                            <button onclick="window.dispatch('inviteSearchMember')" class="bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 shadow-sm">搜索</button>
                         </div>
                         ${state.ui.inviteSearchResult ? (state.ui.inviteSearchResult.found ? `
                             <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
@@ -237,16 +237,16 @@ function RenderModals() {
                                         <p class="text-xs text-gray-500">${state.ui.inviteSearchResult.user.email}</p>
                                     </div>
                                 </div>
-                                <button onclick="window.dispatch('inviteMember')" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">${L('common.add')}</button>
+                                <button onclick="window.dispatch('inviteMember')" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">添加</button>
                             </div>
                         ` : `
                             <div class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                                ${Icon('alert-circle', 'inline mr-2', 16)} ${L('newProject.notFoundHint')}
+                                ${Icon('alert-circle', 'inline mr-2', 16)} 未找到此用户，请检查邮箱是否正确
                             </div>
                         `) : ''}
                     </div>
                     <div class="px-2 py-2 max-h-[400px] overflow-y-auto">
-                        <p class="px-4 py-3 text-sm font-medium text-gray-400">${L('memberModal.existingMembers')}</p>
+                        <p class="px-4 py-3 text-sm font-medium text-gray-400">现有成员</p>
                         ${pMembers.map(m => {
             const isOwner = p.ownerId === m.uid;
             const isMe = m.uid === state.currentUser.uid;
@@ -267,11 +267,11 @@ function RenderModals() {
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center gap-2">
                                                 <p class="text-sm font-bold text-gray-800">${m.name}</p>
-                                                ${isOwner ? `<span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 border border-gray-200 rounded font-medium">${L('memberModal.owner')}</span>` : ''}
+                                                ${isOwner ? '<span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 border border-gray-200 rounded font-medium">Owner</span>' : ''}
                                             </div>
 
                                             <div class="mt-2 flex flex-wrap gap-1.5">
-                                                ${projectActiveTasks.length === 0 ? `<p class="text-xs text-gray-400">${L('memberModal.currentlyIdle')}</p>` : projectActiveTasks.map(task => `
+                                                ${projectActiveTasks.length === 0 ? '<p class="text-xs text-gray-400">目前空闲</p>' : projectActiveTasks.map(task => `
                                                     <div onclick="window.dispatch('setView', {type:'task_detail', projectId:'${pid}', taskId:'${task.id}'}); window.dispatch('closeMemberModal')"
                                                          class="inline-flex items-center text-[11px] ${textClass} ${bgClass} px-2 py-0.5 rounded-full border ${borderClass} cursor-pointer transition-all">
                                                         ${Icon('pen-tool', 'mr-1', 10, 'none', iconColor)}
@@ -381,8 +381,8 @@ function RenderModals() {
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
                         <div>
-                            <h3 class="text-xl font-bold text-gray-800">${L('task.startWork')}</h3>
-                            <p class="text-sm text-gray-500 mt-1 font-mono">${t?.file?.source === 'github' ? L('file.githubSnapshot') : (t?.file?.name || 'File')}</p>
+                            <h3 class="text-xl font-bold text-gray-800">开始占用</h3>
+                            <p class="text-sm text-gray-500 mt-1 font-mono">${t?.file?.source === 'github' ? 'GitHub 仓库快照' : (t?.file?.name || 'File')}</p>
                         </div>
                         <button onclick="window.dispatch('closeStartModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
                     </div>
@@ -390,16 +390,16 @@ function RenderModals() {
                     <div class="flex-1 overflow-y-auto p-6 bg-emerald-50/30 space-y-4">
                         ${t?.isLocked ? `
                             <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-700 flex items-center justify-between">
-                                <span>${Icon('lock', 'inline-block mr-2', 14)}${L('history.someoneOccupying', { name: locker?.name || '...' })}</span>
+                                <span>${Icon('lock', 'inline-block mr-2', 14)}${locker?.name || '有人'} 正在占用，当前不可开始占用</span>
                             </div>
                         ` : `
                             <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
                                 <div>
-                                    <h4 class="text-sm font-bold text-gray-800">${L('history.directStart')}</h4>
-                                    <p class="text-xs text-gray-500 mt-0.5">${L('history.directStartHint')}</p>
+                                    <h4 class="text-sm font-bold text-gray-800">直接开始占用</h4>
+                                    <p class="text-xs text-gray-500 mt-0.5">不下载任何版本，直接进入占用状态</p>
                                 </div>
-                                <button onclick="window.dispatch('startTask', '${t.id}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm whitespace-nowrap">
-                                    ${Icon('play', 'mr-2', 14)} ${L('task.startWork')}
+                                <button onclick="window.dispatch('startTask', '${t.id}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm">
+                                    ${Icon('play', 'mr-2', 14)} 开始占用
                                 </button>
                             </div>
                         `}
@@ -415,28 +415,28 @@ function RenderModals() {
                                             <div class="flex items-center gap-2">
                                                 <h4 class="text-lg font-bold text-gray-800">v${v.version}</h4>
                                                 ${v.source === 'github' ? '<span class="text-[11px] font-semibold text-blue-600">GitHub</span>' : ''}
-                                                ${v.isLatest ? `<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-bold">${L('history.latest')}</span>` : ''}
+                                                ${v.isLatest ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
                                                 ${v.source === 'github'
                     ? `<span>commit ${String(v.commitSha || '').slice(0, 7)}</span> • <span>${formatDate(v.ts)}</span>`
-                    : `<span>${formatDate(v.ts)}</span> • <span>${translateLegacyLabel(v.size)}</span>`}
+                    : `<span>${formatDate(v.ts)}</span> • <span>${v.size}</span>`}
                                             </p>
-                                            ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">${L('file.note', { note: v.note })}</p>` : ''}
+                                            ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">备注：${v.note}</p>` : ''}
                                         </div>
                                     </div>
                                     ${t?.isLocked
-                ? `<button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap">
-                                            ${Icon('download', 'mr-2', 14)} ${v.source === 'github' ? L('history.downloadFromGithub') : L('history.downloadOnly')}
+                ? `<button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                            ${Icon('download', 'mr-2', 14)} ${v.source === 'github' ? '从 GitHub 下载' : '仅下载'}
                                         </button>`
-                : `<button onclick="window.dispatch('startTaskWithDownload', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm whitespace-nowrap">
-                                            ${Icon('download', 'mr-2', 14)} ${L('history.downloadAndStart')}
+                : `<button onclick="window.dispatch('startTaskWithDownload', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm">
+                                            ${Icon('download', 'mr-2', 14)} 下载并占用
                                         </button>`
             }
                                 </div>
                             `).join('')}
 
-                            ${displayVersions.length === 0 ? `<div class="text-center text-gray-400 py-4">${L('history.noVersionsForUse')}</div>` : ''}
+                            ${displayVersions.length === 0 ? '<div class="text-center text-gray-400 py-4">暂无可用版本</div>' : ''}
                         </div>
                     </div>
                 </div>
@@ -491,8 +491,8 @@ function RenderModals() {
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
                         <div>
-                            <h3 class="text-xl font-bold text-gray-800">${L('history.title')}</h3>
-                            <p class="text-sm text-gray-500 mt-1 font-mono">${t.file?.source === 'github' ? L('file.githubSnapshot') : (t.file?.name || 'File History')}</p>
+                            <h3 class="text-xl font-bold text-gray-800">版本选择</h3>
+                            <p class="text-sm text-gray-500 mt-1 font-mono">${t.file?.source === 'github' ? 'GitHub 仓库快照' : (t.file?.name || 'File History')}</p>
                         </div>
                         <button onclick="window.dispatch('closeHistoryModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
                     </div>
@@ -507,7 +507,7 @@ function RenderModals() {
                                     </div>
                                     <div>
                                         <div class="flex items-center gap-2">
-                                            <h4 class="text-lg font-bold text-gray-800">v${nextVersion} (${L('history.editing')})</h4>
+                                            <h4 class="text-lg font-bold text-gray-800">v${nextVersion} (正在编辑)</h4>
                                             <span class="bg-purple-200 text-purple-700 text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
                                                 ${Icon('lock', '', 10)} ${locker?.name || 'Unknown'}
                                             </span>
@@ -515,14 +515,14 @@ function RenderModals() {
                                         <p class="text-sm text-purple-600 font-mono mt-1 timer-display" data-ts="${t.lockedAt}">00:00</p>
                                     </div>
                                 </div>
-                                <button disabled class="bg-white text-gray-400 border border-gray-200 px-4 py-2 rounded-lg text-sm cursor-not-allowed opacity-70 z-10 whitespace-nowrap">
-                                    ${L('history.cannotDownload')}
+                                <button disabled class="bg-white text-gray-400 border border-gray-200 px-4 py-2 rounded-lg text-sm cursor-not-allowed opacity-70 z-10">
+                                    无法下载
                                 </button>
                                 <div class="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-purple-100 to-transparent opacity-50"></div>
                             </div>
                             <div class="flex items-center gap-4">
                                 <div class="h-px bg-gray-200 flex-1"></div>
-                                <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">${L('history.availableVersions')}</span>
+                                <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">可用版本</span>
                                 <div class="h-px bg-gray-200 flex-1"></div>
                             </div>
                         ` : ''}
@@ -538,27 +538,27 @@ function RenderModals() {
                                             <div class="flex items-center gap-2">
                                                 <h4 class="text-lg font-bold text-gray-800">v${v.version}</h4>
                                                 ${v.source === 'github' ? '<span class="text-[11px] font-semibold text-blue-600">GitHub</span>' : ''}
-                                                ${v.isLatest ? `<span class="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded font-bold">${L('history.latest')}</span>` : ''}
+                                                ${v.isLatest ? '<span class="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded font-bold">Latest</span>' : ''}
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 flex items-center gap-2">
                                                 ${v.source === 'github'
                     ? `<span>commit ${String(v.commitSha || '').slice(0, 7)}</span> • <span>${formatDate(v.ts)}</span>`
-                    : `<span>${formatDate(v.ts)}</span> • <span>${translateLegacyLabel(v.size)}</span>`}
+                    : `<span>${formatDate(v.ts)}</span> • <span>${v.size}</span>`}
                                             </p>
-                                            ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">${L('file.note', { note: v.note })}</p>` : ''}
+                                            ${v.note ? `<p class="mt-1 text-xs text-gray-500 line-clamp-2">备注：${v.note}</p>` : ''}
                                         </div>
                                     </div>
 
-                                    <button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap">
-                                        ${Icon('download', 'mr-2', 14)} ${L('history.downloadOnly')}
+                                    <button onclick="window.dispatch('downloadVersion', '${t.id}', '${v.version}')" class="flex items-center px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                        ${Icon('download', 'mr-2', 14)} 仅下载
                                     </button>
                                 </div>
                             `).join('')}
 
-                            ${displayVersions.length === 0 ? `<div class="text-center text-gray-400 py-4">${L('history.noVersionsForHistory')}</div>` : ''}
+                            ${displayVersions.length === 0 ? '<div class="text-center text-gray-400 py-4">暂无历史版本</div>' : ''}
                         </div>
 
-                        <p class="text-center text-xs text-gray-300 mt-4">${L('history.autoCleaned')}</p>
+                        <p class="text-center text-xs text-gray-300 mt-4">早期版本已自动清理，仅保留最近 3 个版本</p>
                     </div>
                 </div>
             </div>
@@ -635,33 +635,33 @@ function RenderModals() {
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onclick="event.stopPropagation()">
                     <div class="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
                         <div>
-                            <h3 class="text-lg font-bold text-gray-800">${L('github.linkTitle')}</h3>
-                            <p class="text-xs text-gray-500 mt-1">${L('github.publicOnly')}</p>
+                            <h3 class="text-lg font-bold text-gray-800">链接 GitHub 仓库</h3>
+                            <p class="text-xs text-gray-500 mt-1">当前只支持公开仓库</p>
                         </div>
                         <button onclick="window.dispatch('closeGithubLinkModal')" class="text-gray-400 hover:text-gray-600">${Icon('x', '', 20)}</button>
                     </div>
                     <div class="p-6 space-y-4">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">${L('github.repoUrlLabel')}</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">仓库地址</label>
                             <input id="github-repo-url" type="text" value="${githubLink?.repoUrl || ''}" placeholder="https://github.com/owner/repo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" />
-                            <p class="text-xs text-gray-400 mt-2">${L('github.repoUrlHint')}</p>
+                            <p class="text-xs text-gray-400 mt-2">只接受完整公开仓库地址，不接受私有仓库。</p>
                         </div>
                         ${githubLink ? `
                             <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                                 <div class="text-sm font-semibold text-emerald-700">${githubLink.owner}/${githubLink.repo}</div>
-                                <div class="text-xs text-emerald-600 mt-1">${L('github.defaultBranch')}${githubLink.branch || 'main'}</div>
+                                <div class="text-xs text-emerald-600 mt-1">默认分支：${githubLink.branch || 'main'}</div>
                             </div>
                         ` : ''}
                     </div>
                     <div class="px-6 py-4 bg-gray-50 border-t flex justify-between gap-3">
                         <div>
                             ${githubLink ? `
-                                <button onclick="window.dispatch('disconnectGithubLink', '${tid}')" class="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg">${L('github.disconnect')}</button>
+                                <button onclick="window.dispatch('disconnectGithubLink', '${tid}')" class="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg">断开链接</button>
                             ` : '<span></span>'}
                         </div>
                         <div class="flex gap-3">
-                            <button onclick="window.dispatch('closeGithubLinkModal')" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">${L('common.cancel')}</button>
-                            <button onclick="window.dispatch('saveGithubLink')" class="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm">${L('github.save')}</button>
+                            <button onclick="window.dispatch('closeGithubLinkModal')" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">取消</button>
+                            <button onclick="window.dispatch('saveGithubLink')" class="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm">保存链接</button>
                         </div>
                     </div>
                 </div>
@@ -765,14 +765,14 @@ function RenderModals() {
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
                     <div class="px-6 py-5 border-b flex justify-between items-center bg-white">
                         <div>
-                            <h3 class="text-xl font-bold text-gray-800">${isTextTask ? L('history.progressTitle') : L('history.editTitle')}</h3>
+                            <h3 class="text-xl font-bold text-gray-800">${isTextTask ? '进度记录' : '编辑记录'}</h3>
                             <p class="text-sm text-gray-500 mt-1 font-mono">${t.name}</p>
                         </div>
                         <button onclick="window.dispatch('closeEditHistoryModal')" class="text-gray-400 hover:text-gray-600 transition-colors">${Icon('x', '', 24)}</button>
                     </div>
 
                     <div class="flex-1 overflow-y-auto p-6 bg-gray-50 space-y-4">
-                        ${activities.length === 0 ? `<div class="text-center text-gray-400 py-10">${isTextTask ? L('history.progressTitle') : L('history.editTitle')}</div>` : ''}
+                        ${activities.length === 0 ? `<div class="text-center text-gray-400 py-10">暂无${isTextTask ? '进度' : '编辑'}记录</div>` : ''}
                         ${activities.map(act => {
             const user = state.users.find(u => u.uid === act.userId);
             const isUpload = act.type === 'upload';
@@ -784,19 +784,19 @@ function RenderModals() {
             if (isProgress) {
                 icon = Icon('check-circle-2', '', 20);
                 iconBg = isMeAct ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-700';
-                title = L('history.submitProgress', { ver: act.version });
+                title = `提交进度 v${act.version}`;
             } else if (isUpload) {
                 icon = Icon('check-circle-2', '', 20);
                 iconBg = isMeAct ? 'bg-green-100 text-green-600' : 'bg-purple-100 text-purple-700';
-                title = L('history.commitVersion', { ver: act.version }) + (act.source === 'github' ? ' · GitHub' : '');
+                title = `提交版本 v${act.version}${act.source === 'github' ? ' · GitHub' : ''}`;
             } else if (isAutoDiscard) {
                 icon = Icon('clock', '', 20);
                 iconBg = 'bg-orange-100 text-orange-600';
-                title = L('history.autoDiscard');
+                title = '超时自动放弃';
             } else {
                 icon = Icon('x-circle', '', 20);
                 iconBg = 'bg-red-100 text-red-600';
-                title = L('history.discarded');
+                title = '放弃了修改';
             }
 
             return `
@@ -816,8 +816,8 @@ function RenderModals() {
                                             <span class="text-xs text-gray-400 whitespace-nowrap">${formatDate(act.timestamp)}</span>
                                         </div>
                                         <div class="mt-3 flex items-center gap-4 text-xs text-gray-500 border-t border-gray-50 pt-3">
-                                            <span class="flex items-center gap-1">${Icon('timer', '', 14)} ${L('history.duration')}: ${getFriendlyDuration(act.duration)}</span>
-                                            ${isUpload ? `<span class="flex items-center gap-1">${Icon('hard-drive', '', 14)} ${L('history.fileSize')}: ${translateLegacyLabel(act.size)}</span>` : ''}
+                                            <span class="flex items-center gap-1">${Icon('timer', '', 14)} 编辑时长: ${getFriendlyDuration(act.duration)}</span>
+                                            ${isUpload ? `<span class="flex items-center gap-1">${Icon('hard-drive', '', 14)} 文件大小: ${act.size}</span>` : ''}
                                         </div>
                                     </div>
                                 </div>
