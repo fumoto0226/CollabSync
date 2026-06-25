@@ -413,6 +413,11 @@ function RenderSidebar(options = {}) {
                         <h2 class="text-sm font-bold text-gray-800 mb-2">${L('login.signInTitle')}</h2>
                         <p class="text-xs text-gray-500 mb-4">${L('login.signInHint')}</p>
                         <button onclick="window.dispatch('login')" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors">${L('login.button')}</button>
+                        <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-center gap-2 text-xs">
+                            <button onclick="window.dispatch('setLocale', 'zh')" class="px-3 py-1 rounded-lg ${state.locale === 'zh' ? 'bg-blue-500 text-white font-semibold' : 'text-gray-500 hover:bg-gray-100'}">中文</button>
+                            <span class="text-gray-300">|</span>
+                            <button onclick="window.dispatch('setLocale', 'ja')" class="px-3 py-1 rounded-lg ${state.locale === 'ja' ? 'bg-blue-500 text-white font-semibold' : 'text-gray-500 hover:bg-gray-100'}">日本語</button>
+                        </div>
                     </div>
                 </div>
                 <div class="border-t border-gray-200 bg-[#f3f4f6] p-4">

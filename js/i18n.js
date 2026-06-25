@@ -150,6 +150,12 @@ const I18N_MESSAGES = {
         'gantt.nextWeek': '向后一周',
         'gantt.nextMonth': '向后一个月',
         'gantt.add': '添加',
+        'gantt.deleteConfirm': '确定要删除"{name}"吗？',
+        'gantt.zoomDay': '日',
+        'gantt.zoomMonth': '月',
+        'gantt.zoomYear': '年',
+        'gantt.fit': '适应内容',
+        'gantt.jumpTo': '跳转到',
 
         // 新建项目
         'newProject.title': '新建项目',
@@ -389,6 +395,12 @@ const I18N_MESSAGES = {
         'gantt.nextWeek': '1週間進む',
         'gantt.nextMonth': '1か月進む',
         'gantt.add': '追加',
+        'gantt.deleteConfirm': '「{name}」を削除しますか？',
+        'gantt.zoomDay': '日',
+        'gantt.zoomMonth': '月',
+        'gantt.zoomYear': '年',
+        'gantt.fit': 'フィット',
+        'gantt.jumpTo': 'ジャンプ',
 
         // 新建项目
         'newProject.title': '新規プロジェクト',

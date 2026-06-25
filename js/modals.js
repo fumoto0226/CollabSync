@@ -1,28 +1,4 @@
 function RenderModals() {
-    // 首次访问：弹出语言选择，必选一个才能用
-    if (state.localePickerRequired) {
-        return `
-            <div class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-                    <div class="px-6 py-5 border-b bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">${Icon('languages', '', 20)}</div>
-                        <h3 class="text-lg font-bold text-gray-800">${L('firstLang.title')}</h3>
-                    </div>
-                    <div class="p-4 space-y-2">
-                        <button onclick="window.dispatch('setLocale', 'zh')" class="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center gap-3">
-                            <span class="text-2xl">🇨🇳</span>
-                            <span class="font-semibold text-gray-800">简体中文</span>
-                        </button>
-                        <button onclick="window.dispatch('setLocale', 'ja')" class="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center gap-3">
-                            <span class="text-2xl">🇯🇵</span>
-                            <span class="font-semibold text-gray-800">日本語</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
     // Pending Todo Recovery (interrupted send)
     if (state.ui.pendingTodoRecovery) {
         const rec = state.ui.pendingTodoRecovery;
@@ -1102,6 +1078,7 @@ function renderGanttLeftChip(it, isScheduled, myUid, g) {
         <div draggable="true"
             ${dragHandler}
             onclick="window.dispatch('selectGanttItem', '${it.id}')"
+            oncontextmenu="window.dispatch('openGanttContextMenu', event, '${it.kind}', '${it.id}')"
             class="${selCls} border rounded-lg px-2 py-1.5 text-xs shadow-sm cursor-pointer flex items-center gap-1.5">
             <span class="inline-block w-1.5 h-1.5 rounded-full ${chipDot} flex-shrink-0"></span>
             ${flag}
@@ -1115,10 +1092,37 @@ function renderGanttLeftChip(it, isScheduled, myUid, g) {
 function renderGanttModal() {
     const g = state.ui.ganttModal;
     const DAY = 86400000;
-    const CELL_W = 34;
     const ROW_H = 34;
     const NAME_W = 130;
     const UNSCHED_W = 180;
+    // 连续缩放：从 state 读 cellW；header 格式按宽度阈值决定
+    const CELL_W = g.cellW || 34;
+    const headerMode = CELL_W >= 14 ? 'day' : (CELL_W >= 4 ? 'month' : 'year');
+    const zoom = { headerMode };
+    // 计算每个日期格的样式（按缩放模式决定竖线/底色）
+    const computeCellStyle = (ms, isToday) => {
+        const d = new Date(ms);
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        if (headerMode === 'day') {
+            const bg = isToday ? 'bg-amber-50/30' : (isWeekend ? 'bg-gray-50/40' : '');
+            return { borderClass: 'border-r border-b border-gray-100', bgClass: bg };
+        }
+        // 月/年模式：按月份奇偶交替底色，区分月份
+        const monthEven = d.getMonth() % 2 === 0;
+        let bg = monthEven ? '' : 'bg-gray-100/60';
+        if (isToday) bg = 'bg-amber-100/70';
+        if (headerMode === 'month') {
+            // 月：月首加粗线，周一细线，其它不画
+            let borderClass = 'border-b border-gray-100';
+            if (d.getDate() === 1) borderClass += ' border-l border-gray-200';
+            else if (d.getDay() === 1) borderClass += ' border-l border-gray-200';
+            return { borderClass, bgClass: bg };
+        }
+        // year: 只月首画线
+        let borderClass = 'border-b border-gray-100';
+        if (d.getDate() === 1) borderClass += ' border-l border-gray-200';
+        return { borderClass, bgClass: bg };
+    };
     // 根据视口自适应：弹窗 min(96vw, 1500px)，扣掉左侧未排期面板，剩下的能塞几天就塞几天
     const vw = (typeof window !== 'undefined') ? window.innerWidth : 1500;
     const vh = (typeof window !== 'undefined') ? window.innerHeight : 900;
@@ -1256,16 +1260,42 @@ function renderGanttModal() {
     const todayStart = (() => { const d = new Date(today); d.setHours(0, 0, 0, 0); return d.getTime(); })();
     const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
 
-    // 头部日期格子
+    // 头部日期格子（根据 zoom 决定每个格子是空的还是显示标签；标签覆盖型，不占额外列）
     const headerCells = days.map(ms => {
         const d = new Date(ms);
         const isToday = ms === todayStart;
-        const wd = weekdayLabels[d.getDay()];
         const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        let label = '';
+        if (zoom.headerMode === 'day') {
+            const wd = weekdayLabels[d.getDay()];
+            label = `<div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-400'} pt-1">${d.getMonth() + 1}/${d.getDate()}</div>
+                     <div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-400'}">${wd}</div>`;
+        } else if (zoom.headerMode === 'month') {
+            // 每周一标一个 "M/D"，其他日子留白
+            if (d.getDay() === 1) {
+                label = `<div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'} pt-1 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%);">${d.getMonth() + 1}/${d.getDate()}</div>`;
+            }
+            // 每月 1 号粗一点
+            if (d.getDate() === 1) {
+                label += `<div class="text-[11px] text-indigo-600 font-bold pt-4 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%);">${d.getMonth() + 1}月</div>`;
+            }
+        } else if (zoom.headerMode === 'year') {
+            // 每月 1 号标月份；每年 1/1 标年
+            if (d.getDate() === 1) {
+                label = `<div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'} pt-1 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%);">${d.getMonth() + 1}月</div>`;
+            }
+            if (d.getDate() === 1 && d.getMonth() === 0) {
+                label += `<div class="text-[11px] text-indigo-600 font-bold pt-4 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%);">${d.getFullYear()}</div>`;
+            }
+        }
+        const { borderClass: hBorder, bgClass: hBg } = computeCellStyle(ms, isToday);
+        // 头部用更明显的底色（无 /60 透明度）
+        const headerBg = headerMode === 'day'
+            ? (isToday ? 'bg-amber-50' : (isWeekend ? 'bg-gray-50' : 'bg-white'))
+            : hBg.replace('/60', '').replace('/70', '');
         return `
-            <div class="flex-shrink-0 text-center border-r border-gray-100 ${isToday ? 'bg-amber-50' : (isWeekend ? 'bg-gray-50' : 'bg-white')}" style="width:${CELL_W}px; height:48px;">
-                <div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-400'} pt-1">${d.getMonth() + 1}/${d.getDate()}</div>
-                <div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-400'}">${wd}</div>
+            <div class="flex-shrink-0 text-center ${hBorder} relative ${headerBg}" style="width:${CELL_W}px; height:48px;">
+                ${label}
             </div>
         `;
     }).join('');
@@ -1299,14 +1329,15 @@ function renderGanttModal() {
 
         const barLeft = Math.max(0, leftOffset) * CELL_W;
         const barClippedDays = Math.min(viewRight - Math.max(0, leftOffset), widthDays - Math.max(0, -leftOffset));
-        const barWidth = Math.max(CELL_W - 8, barClippedDays * CELL_W - 6);
+        const barWidth = Math.max(4, barClippedDays * CELL_W - Math.min(6, CELL_W * 0.3));
         const leftClipped = leftOffset < 0;
         const rightClipped = leftOffset + widthDays > viewRight;
         const topPx = rowIdx * ROW_H + 4;
+        const showHandles = barWidth >= 20;
         return `
             <div class="absolute ${barColor} rounded-md flex items-stretch overflow-hidden ${isSel ? 'ring-2 ring-offset-1 ring-indigo-500' : ''}"
                 style="left:${barLeft + 3}px; top:${topPx}px; width:${barWidth}px; height:${ROW_H - 8}px; z-index:5;">
-                ${!leftClipped ? `<div
+                ${(!leftClipped && showHandles) ? `<div
                     onmousedown="window.dispatch('onGanttResizeStart', event, '${it.kind}', '${it.id}', 'start')"
                     ondragstart="event.preventDefault()"
                     class="w-1.5 cursor-ew-resize bg-black/15 hover:bg-black/30 flex-shrink-0"
@@ -1319,7 +1350,7 @@ function renderGanttModal() {
                     ${(it.priority && it.priority !== 'none') ? `<span class="flex-shrink-0 opacity-90">${Icon('flag', '', 11, 'none', getTodoPriorityMeta(it.priority).stroke)}</span>` : ''}
                     <span class="truncate">${(it.label || '').replace(/</g, '&lt;')}</span>
                 </div>
-                ${!rightClipped ? `<div
+                ${(!rightClipped && showHandles) ? `<div
                     onmousedown="window.dispatch('onGanttResizeStart', event, '${it.kind}', '${it.id}', 'end')"
                     ondragstart="event.preventDefault()"
                     class="w-1.5 cursor-ew-resize bg-black/15 hover:bg-black/30 flex-shrink-0"
@@ -1332,8 +1363,8 @@ function renderGanttModal() {
     const gridRowsHtml = Array.from({ length: totalRows }).map(() => {
         const cells = days.map(ms => {
             const isToday = ms === todayStart;
-            const isWeekend = new Date(ms).getDay() === 0 || new Date(ms).getDay() === 6;
-            return `<div class="flex-shrink-0 border-r border-b border-gray-100 ${isToday ? 'bg-amber-50/30' : (isWeekend ? 'bg-gray-50/40' : '')}"
+            const { borderClass, bgClass } = computeCellStyle(ms, isToday);
+            return `<div class="flex-shrink-0 ${borderClass} ${bgClass}"
                 style="width:${CELL_W}px; height:${ROW_H}px;"
                 ondragover="window.dispatch('onGanttCellDragOver', event)"
                 ondrop="window.dispatch('onGanttCellDrop', event, ${ms})"></div>`;
@@ -1360,7 +1391,19 @@ function renderGanttModal() {
                             <p class="text-xs text-gray-500">${L('gantt.hint')}</p>
                         </div>
                     </div>
-                    <div class="flex items-center gap-1">
+                    <div class="flex items-center gap-1 flex-wrap justify-end">
+                        <!-- 缩放级别 -->
+                        <div class="inline-flex rounded border border-gray-200 bg-gray-50 p-0.5 text-xs">
+                            ${['day', 'month', 'year'].map(lv => `
+                                <button onclick="window.dispatch('setGanttZoom', '${lv}')"
+                                    class="px-2 py-0.5 rounded ${g.zoomLevel === lv ? 'bg-blue-500 text-white font-semibold shadow-sm' : 'text-gray-500 hover:text-gray-800'}">
+                                    ${L('gantt.zoom' + lv.charAt(0).toUpperCase() + lv.slice(1))}
+                                </button>
+                            `).join('')}
+                        </div>
+                        <!-- 适应内容 -->
+                        <button onclick="window.dispatch('ganttFitContent')" class="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-100 flex items-center gap-1" title="${L('gantt.fit')}">${Icon('maximize-2', '', 12)} ${L('gantt.fit')}</button>
+                        <!-- 翻页 -->
                         <button onclick="window.dispatch('ganttScroll', -30)" class="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-100 flex items-center" title="${L('gantt.prevMonth')}">${Icon('chevrons-left', '', 14)}</button>
                         <button onclick="window.dispatch('ganttScroll', -7)" class="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-100 flex items-center" title="${L('gantt.prevWeek')}">${Icon('chevron-left', '', 14)}</button>
                         <button onclick="window.dispatch('ganttJumpToday')" class="px-2 py-1 text-xs rounded ${(todayStart >= g.viewStartMs && todayStart < g.viewStartMs + ADAPTIVE_DAYS * DAY) ? 'bg-blue-500 text-white font-semibold hover:bg-blue-600' : 'border border-gray-200 hover:bg-gray-100'}">${L('common.today')}</button>
@@ -1399,7 +1442,9 @@ function renderGanttModal() {
                                 <div class="flex">${headerCells}</div>
                             </div>
                             <!-- 自由摆放区域：网格做背景 + 条绝对定位覆盖 -->
-                            <div class="relative" style="height:${totalRows * ROW_H}px;">
+                            <div class="relative cursor-grab active:cursor-grabbing" style="height:${totalRows * ROW_H}px;"
+                                onmousedown="window.dispatch('ganttPanStart', event)"
+                                onwheel="window.dispatch('ganttZoomWheel', event)">
                                 <div>${gridRowsHtml}</div>
                                 ${barsHtml}
                                 ${scheduled.length === 0 ? `
@@ -1565,6 +1610,18 @@ function renderGanttModal() {
                                 <button onclick="window.dispatch('closeGanttQuickEdit')" class="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-200 rounded">${L('common.cancel')}</button>
                                 <button onclick="window.dispatch('submitGanttQuickEdit')" class="px-4 py-1.5 text-sm font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded shadow-sm">${L('common.save')}</button>
                             </div>
+                        </div>
+                    </div>
+                ` : ''}
+                ${g.contextMenu ? `
+                    <div class="fixed inset-0 z-[120]" onclick="window.dispatch('closeGanttContextMenu')" oncontextmenu="event.preventDefault(); window.dispatch('closeGanttContextMenu')">
+                        <div class="absolute bg-white border border-gray-200 rounded-lg shadow-2xl py-1 w-32" style="left:${g.contextMenu.x}px; top:${g.contextMenu.y}px;" onclick="event.stopPropagation()">
+                            <button onclick="window.dispatch('ganttContextEdit')" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                ${Icon('edit-3', '', 14)} ${L('common.edit')}
+                            </button>
+                            <button onclick="window.dispatch('ganttContextDelete')" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                ${Icon('trash-2', '', 14)} ${L('common.delete')}
+                            </button>
                         </div>
                     </div>
                 ` : ''}

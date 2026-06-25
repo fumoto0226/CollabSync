@@ -1705,6 +1705,14 @@ const Actions = {
         console.error(label + ':', e);
         if (window.showAlert) window.showAlert(L('common.saveFailed') + (e?.message ? ': ' + e.message : ''));
     },
+    _ganttCellW: () => {
+        return state.ui.ganttModal?.cellW || 34;
+    },
+    _ganttLevelFromCellW: (w) => {
+        if (w >= 14) return 'day';
+        if (w >= 4) return 'month';
+        return 'year';
+    },
     _ganttStartOfDay: (ms) => {
         const d = new Date(ms);
         d.setHours(0, 0, 0, 0);
@@ -1753,6 +1761,114 @@ const Actions = {
         if (!g.mode) return;
         const today = Actions._ganttStartOfDay(Date.now());
         g.viewStartMs = today - 2 * 86400000;
+        Render();
+    },
+    setGanttZoom: (level) => {
+        if (!['day', 'month', 'year'].includes(level)) return;
+        const defaults = { day: 34, month: 6, year: 1.5 };
+        state.ui.ganttModal.cellW = defaults[level];
+        state.ui.ganttModal.zoomLevel = level;
+        Render();
+    },
+    ganttJumpToDate: (val) => {
+        if (!val) return;
+        const ms = new Date(val + 'T00:00:00').getTime();
+        if (!ms || isNaN(ms)) return;
+        const g = state.ui.ganttModal;
+        g.viewStartMs = Actions._ganttStartOfDay(ms) - 2 * 86400000;
+        Render();
+    },
+    ganttPanStart: (event) => {
+        if (!event || event.button !== 0) return;
+        // 仅在空白网格上拖拽时启动平移；条本体/手柄都用 stopPropagation 拦住了
+        event.preventDefault();
+        const g = state.ui.ganttModal;
+        if (!g.mode) return;
+        const CELL_W = Actions._ganttCellW();
+        const DAY = 86400000;
+        const startX = event.clientX;
+        const origView = g.viewStartMs;
+        let pendingFrame = null, lastX = startX, moved = false;
+        const onMove = (e) => {
+            lastX = e.clientX;
+            if (!moved && Math.abs(lastX - startX) < 3) return;
+            moved = true;
+            if (pendingFrame) return;
+            pendingFrame = requestAnimationFrame(() => {
+                pendingFrame = null;
+                const deltaPx = lastX - startX;
+                const deltaDays = -Math.round(deltaPx / CELL_W);
+                g.viewStartMs = origView + deltaDays * DAY;
+                Render();
+            });
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            if (pendingFrame) cancelAnimationFrame(pendingFrame);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    },
+    ganttZoomWheel: (event) => {
+        if (!event) return;
+        const g = state.ui.ganttModal;
+        if (!g.mode) return;
+        const DAY = 86400000;
+        // 横向滚动 = 平移
+        if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+            event.preventDefault();
+            const CELL_W = g.cellW || 34;
+            const deltaDays = event.deltaX / CELL_W;
+            if (Math.abs(deltaDays) > 0.01) {
+                g.viewStartMs = (g.viewStartMs || 0) + deltaDays * DAY;
+                Render();
+            }
+            return;
+        }
+        // 纵向滚动 = 连续缩放（围绕光标位置）
+        event.preventDefault();
+        const MIN_W = 1.2, MAX_W = 60;
+        const oldW = g.cellW || 34;
+        // deltaY > 0 (滚下) → 缩小；< 0 (滚上) → 放大
+        // 每 100 单位 deltaY 大约缩放 1.12 倍
+        const factor = Math.pow(1.12, -event.deltaY / 100);
+        let newW = oldW * factor;
+        newW = Math.max(MIN_W, Math.min(MAX_W, newW));
+        if (Math.abs(newW - oldW) < 0.01) return;
+        // 围绕光标缩放：让光标下的那一天保持不动
+        const rect = event.currentTarget?.getBoundingClientRect?.();
+        if (rect) {
+            const cursorPx = event.clientX - rect.left;
+            const dateAtCursor = (g.viewStartMs || 0) + cursorPx / oldW * DAY;
+            g.viewStartMs = dateAtCursor - cursorPx / newW * DAY;
+        }
+        g.cellW = newW;
+        g.zoomLevel = Actions._ganttLevelFromCellW(newW);
+        Render();
+    },
+    ganttFitContent: () => {
+        const g = state.ui.ganttModal;
+        if (!g.mode) return;
+        // 收集所有已排期项
+        const items = g.mode === 'project'
+            ? state.tasks.filter(t => t.projectId === g.projectId && t.startMs && t.endMs)
+            : (state.tasks.find(t => t.id === g.taskId)?.todos || []).filter(td => td.startMs && td.endMs);
+        if (!items.length) return;
+        const minStart = Math.min(...items.map(it => it.startMs));
+        const maxEnd = Math.max(...items.map(it => it.endMs));
+        const totalDays = Math.max(1, Math.round((maxEnd - minStart) / 86400000) + 1);
+        // 估算可用宽度（弹窗内时间轴区域）
+        const vw = (typeof window !== 'undefined') ? window.innerWidth : 1500;
+        const modalW = Math.min(vw * 0.96, 1500);
+        const usableW = Math.max(300, modalW - 180 - 4);
+        // 留 10% 余量挑刚好填满的 cellW
+        const fitWidth = usableW * 0.9;
+        const MIN_W = 1.2, MAX_W = 60;
+        const fitCellW = Math.max(MIN_W, Math.min(MAX_W, fitWidth / totalDays));
+        g.cellW = fitCellW;
+        g.zoomLevel = Actions._ganttLevelFromCellW(fitCellW);
+        g.viewStartMs = Actions._ganttStartOfDay(minStart) - 2 * 86400000;
         Render();
     },
     ganttJumpToItem: (itemId) => {
@@ -1827,7 +1943,7 @@ const Actions = {
         event.preventDefault();
         event.stopPropagation();
         const g = state.ui.ganttModal;
-        const CELL_W = 34, ROW_H = 34, DAY = 86400000;
+        const CELL_W = Actions._ganttCellW(), ROW_H = 34, DAY = 86400000;
         const item = itemKind === 'task'
             ? state.tasks.find(t => t.id === itemId)
             : state.tasks.find(t => t.id === g.taskId)?.todos?.find(td => td.id === itemId);
@@ -1897,7 +2013,7 @@ const Actions = {
             ? state.tasks.find(t => t.id === itemId)
             : state.tasks.find(t => t.id === g.taskId)?.todos?.find(td => td.id === itemId);
         if (!item || !item.startMs || !item.endMs) return;
-        const CELL_W = 34;
+        const CELL_W = Actions._ganttCellW();
         const DAY = 86400000;
         const startX = event.clientX;
         const origStart = item.startMs;
@@ -2059,6 +2175,60 @@ const Actions = {
     toggleGanttHiddenOld: () => {
         state.ui.ganttModal.showHiddenOld = !state.ui.ganttModal.showHiddenOld;
         Render();
+    },
+    openGanttContextMenu: (event, kind, id) => {
+        if (!event) return;
+        event.preventDefault();
+        event.stopPropagation();
+        state.ui.ganttModal.contextMenu = { kind, id, x: event.clientX, y: event.clientY };
+        Render();
+    },
+    closeGanttContextMenu: () => {
+        state.ui.ganttModal.contextMenu = null;
+        Render();
+    },
+    ganttContextEdit: () => {
+        const cm = state.ui.ganttModal.contextMenu;
+        if (!cm) return;
+        state.ui.ganttModal.selectedItemId = cm.id;
+        state.ui.ganttModal.contextMenu = null;
+        Actions.openGanttQuickEdit();
+    },
+    ganttContextDelete: async () => {
+        const g = state.ui.ganttModal;
+        const cm = g.contextMenu;
+        if (!cm) return;
+        state.ui.ganttModal.contextMenu = null;
+        const { db, doc, updateDoc, deleteDoc } = window.fb;
+        let label = '';
+        if (cm.kind === 'task') {
+            const t = state.tasks.find(x => x.id === cm.id);
+            label = t?.name || cm.id;
+        } else {
+            const tt = state.tasks.find(x => x.id === g.taskId);
+            const td = tt?.todos?.find(x => x.id === cm.id);
+            const box = document.createElement('div');
+            box.innerHTML = td?.text || '';
+            label = (box.textContent || '').trim().slice(0, 40) || cm.id;
+        }
+        if (!confirm(L('gantt.deleteConfirm', { name: label }))) {
+            Render();
+            return;
+        }
+        try {
+            if (cm.kind === 'task') {
+                await deleteDoc(doc(db, 'tasks', cm.id));
+            } else {
+                const tt = state.tasks.find(x => x.id === g.taskId);
+                if (!tt) return;
+                tt.todos = (tt.todos || []).filter(td => td.id !== cm.id);
+                await updateDoc(doc(db, 'tasks', g.taskId), { todos: tt.todos });
+            }
+            if (g.selectedItemId === cm.id) g.selectedItemId = null;
+            Render();
+        } catch (e) {
+            Actions._ganttSaveErr('删除失败', e);
+        }
     },
     toggleGanttPriorityPicker: () => {
         state.ui.ganttModal.priorityPickerOpen = !state.ui.ganttModal.priorityPickerOpen;

@@ -5,11 +5,8 @@ let state = {
         try { return localStorage.getItem('cs_locale') || 'zh'; }
         catch (e) { return 'zh'; }
     })(),
-    // 首次访问没选过语言时为 true → 弹首屏语言选择
-    localePickerRequired: (() => {
-        try { return !localStorage.getItem('cs_locale'); }
-        catch (e) { return false; }
-    })(),
+    // 不再使用首屏弹窗，登录页直接放语言选择按钮
+    localePickerRequired: false,
     currentUser: null,
     users: [],
     projects: [],
@@ -63,7 +60,9 @@ let state = {
             projectId: null,
             taskId: null,
             viewStartMs: null,  // 左边缘日期（凌晨0点 ms）
-            dayCount: 14,       // 可视天数
+            dayCount: 14,       // 可视天数（已被自适应取代，保留兼容）
+            cellW: 34,          // 每天像素宽（连续，1.2 - 60）
+            zoomLevel: 'day',   // 'day' | 'month' | 'year' 从 cellW 推导，用于按钮高亮与表头格式
             selectedItemId: null, // 选中编辑的条
             ownerPickerOpen: false,
             priorityPickerOpen: false,
@@ -71,7 +70,8 @@ let state = {
             quickAddOpen: false,
             quickAddText: '',
             quickEditOpen: false,
-            quickEditText: ''
+            quickEditText: '',
+            contextMenu: null  // { kind, id, x, y } 或 null
         },
         inviteInput: '',
         draftSearchResult: null, // 创建项目时搜索成员的结果
