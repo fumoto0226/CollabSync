@@ -22,14 +22,21 @@ const I18N_MESSAGES = {
         'common.notFound': '未找到',
         'common.noContent': '暂无内容',
         'common.optional': '可选',
+        'common.saveFailed': '保存失败',
 
         // 登录 / 欢迎
         'login.title': 'CollabSync',
         'login.subtitle': '团队协作 · 项目同步',
+        'login.signInTitle': '请先登录',
+        'login.signInHint': '登录后才能查看项目并进行操作',
         'login.button': '使用 Google 登录',
-        'welcome.title': '欢迎使用 CollabSync',
-        'welcome.subtitle': '从左侧选择项目开始，或新建一个项目',
+        'login.notSignedIn': '未登录',
+        'welcome.title': '欢迎来到 CollabSync',
+        'welcome.subtitle': '选择左侧的项目开始协作。',
         'welcome.createProject': '新建项目',
+        // 首次访问语言选择
+        'firstLang.title': '请选择语言 / 言語を選択',
+        'firstLang.confirm': '继续 / 進む',
 
         // 侧边栏
         'sidebar.projects': 'Projects',
@@ -60,7 +67,7 @@ const I18N_MESSAGES = {
         'settings.profileEntry': '个人信息',
 
         // 项目仪表盘
-        'project.gantt': '甘特图',
+        'project.gantt': '日程表',
         'project.delete': '删除项目',
         'project.leave': '退出项目',
         'project.editBtn': '编辑项目',
@@ -80,7 +87,7 @@ const I18N_MESSAGES = {
         'memberModal.owner': 'Owner',
 
         // 任务详情
-        'task.gantt': '甘特图',
+        'task.gantt': '日程表',
         'task.history': '查看历史版本',
         'task.editHistory': '查看编辑记录',
         'task.progressHistory': '查看进度记录',
@@ -107,8 +114,8 @@ const I18N_MESSAGES = {
         'todo.priorityMedium': '中优先级',
         'todo.priorityHigh': '高优先级',
 
-        // 甘特图
-        'gantt.title': '甘特图',
+        // 日程表
+        'gantt.title': '日程表',
         'gantt.hint': '从左侧拖到时间轴上排期；拖条本体可平移或上下调位；拖两端可改时长；点击条选中后可编辑或"移出排期"',
         'gantt.unscheduledSection': '未排期',
         'gantt.tasks': '任务',
@@ -254,14 +261,21 @@ const I18N_MESSAGES = {
         'common.notFound': '見つかりません',
         'common.noContent': 'コンテンツなし',
         'common.optional': '任意',
+        'common.saveFailed': '保存に失敗しました',
 
         // 登录 / 欢迎
         'login.title': 'CollabSync',
         'login.subtitle': 'チーム協業 · プロジェクト同期',
+        'login.signInTitle': 'ログインしてください',
+        'login.signInHint': 'ログイン後にプロジェクトの閲覧・操作ができます',
         'login.button': 'Google でログイン',
+        'login.notSignedIn': '未ログイン',
         'welcome.title': 'CollabSync へようこそ',
-        'welcome.subtitle': '左側のプロジェクトを選択するか、新規作成してください',
+        'welcome.subtitle': '左側のプロジェクトを選択して協業を始めましょう。',
         'welcome.createProject': '新規プロジェクト',
+        // 首次访问语言选择
+        'firstLang.title': '言語を選択 / 请选择语言',
+        'firstLang.confirm': '進む / 继续',
 
         // 侧边栏
         'sidebar.projects': 'Projects',
@@ -292,7 +306,7 @@ const I18N_MESSAGES = {
         'settings.profileEntry': '個人情報',
 
         // 项目仪表盘
-        'project.gantt': 'ガントチャート',
+        'project.gantt': 'スケジュール',
         'project.delete': 'プロジェクトを削除',
         'project.leave': 'プロジェクトを退出',
         'project.editBtn': 'プロジェクトを編集',
@@ -312,7 +326,7 @@ const I18N_MESSAGES = {
         'memberModal.owner': 'オーナー',
 
         // 任务详情
-        'task.gantt': 'ガントチャート',
+        'task.gantt': 'スケジュール',
         'task.history': 'バージョン履歴',
         'task.editHistory': '編集履歴',
         'task.progressHistory': '進捗履歴',
@@ -339,8 +353,8 @@ const I18N_MESSAGES = {
         'todo.priorityMedium': '中優先度',
         'todo.priorityHigh': '高優先度',
 
-        // 甘特图
-        'gantt.title': 'ガントチャート',
+        // 日程表
+        'gantt.title': 'スケジュール',
         'gantt.hint': '左側からタイムラインへドラッグしてスケジューリング；バー本体をドラッグで移動・縦位置変更；両端のハンドルで期間変更；バーをクリックで編集または「スケジュールから除外」',
         'gantt.unscheduledSection': '未スケジュール',
         'gantt.tasks': 'タスク',

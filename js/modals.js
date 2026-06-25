@@ -1,4 +1,28 @@
 function RenderModals() {
+    // 首次访问：弹出语言选择，必选一个才能用
+    if (state.localePickerRequired) {
+        return `
+            <div class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                    <div class="px-6 py-5 border-b bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">${Icon('languages', '', 20)}</div>
+                        <h3 class="text-lg font-bold text-gray-800">${L('firstLang.title')}</h3>
+                    </div>
+                    <div class="p-4 space-y-2">
+                        <button onclick="window.dispatch('setLocale', 'zh')" class="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center gap-3">
+                            <span class="text-2xl">🇨🇳</span>
+                            <span class="font-semibold text-gray-800">简体中文</span>
+                        </button>
+                        <button onclick="window.dispatch('setLocale', 'ja')" class="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center gap-3">
+                            <span class="text-2xl">🇯🇵</span>
+                            <span class="font-semibold text-gray-800">日本語</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     // Pending Todo Recovery (interrupted send)
     if (state.ui.pendingTodoRecovery) {
         const rec = state.ui.pendingTodoRecovery;

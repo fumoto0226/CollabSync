@@ -410,13 +410,13 @@ function RenderSidebar(options = {}) {
                 </div>
                 <div class="flex-1 flex flex-col items-center justify-center p-6">
                     <div class="bg-white w-full rounded-2xl border border-gray-200 shadow-sm p-6">
-                        <h2 class="text-sm font-bold text-gray-800 mb-2">请先登录</h2>
-                        <p class="text-xs text-gray-500 mb-4">登录后才能查看项目并进行操作</p>
-                        <button onclick="window.dispatch('login')" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors">使用 Google 登录</button>
+                        <h2 class="text-sm font-bold text-gray-800 mb-2">${L('login.signInTitle')}</h2>
+                        <p class="text-xs text-gray-500 mb-4">${L('login.signInHint')}</p>
+                        <button onclick="window.dispatch('login')" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors">${L('login.button')}</button>
                     </div>
                 </div>
                 <div class="border-t border-gray-200 bg-[#f3f4f6] p-4">
-                    <div class="text-[10px] text-gray-400">未登录</div>
+                    <div class="text-[10px] text-gray-400">${L('login.notSignedIn')}</div>
                 </div>
                 ${resizeHandle}
             </div>
@@ -516,8 +516,8 @@ function RenderMain() {
             <div class="flex-1 flex flex-col items-center justify-center p-8 bg-[#f3f4f6]">
                 <div class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 max-w-lg text-center">
                     <img src="https://cdn-icons-png.flaticon.com/512/3655/3655584.png" class="w-32 h-32 mx-auto mb-6 opacity-90">
-                    <h1 class="text-3xl font-extrabold text-gray-800 mb-4">欢迎来到 CollabSync</h1>
-                    <p class="text-gray-600 mb-8 leading-relaxed">选择左侧的项目开始协作。</p>
+                    <h1 class="text-3xl font-extrabold text-gray-800 mb-4">${L('welcome.title')}</h1>
+                    <p class="text-gray-600 mb-8 leading-relaxed">${L('welcome.subtitle')}</p>
                 </div>
             </div>
         `;

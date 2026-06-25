@@ -5,6 +5,11 @@ let state = {
         try { return localStorage.getItem('cs_locale') || 'zh'; }
         catch (e) { return 'zh'; }
     })(),
+    // 首次访问没选过语言时为 true → 弹首屏语言选择
+    localePickerRequired: (() => {
+        try { return !localStorage.getItem('cs_locale'); }
+        catch (e) { return false; }
+    })(),
     currentUser: null,
     users: [],
     projects: [],

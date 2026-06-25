@@ -148,7 +148,7 @@ const Actions = {
             };
             localStorage.setItem(Actions._pendingTodoKey(), JSON.stringify(record));
         } catch (e) {
-            console.warn('保存待办草稿失败:', e);
+            Actions._ganttSaveErr('保存待办草稿失败', e);
         }
     },
     clearPendingTodoDraft: (tid) => {
@@ -648,6 +648,7 @@ const Actions = {
         try { localStorage.setItem('cs_locale', lang); } catch (e) {}
         state.ui.settingsPopoverOpen = false;
         state.ui.languagePickerOpen = false;
+        state.localePickerRequired = false;
         Render();
     },
     saveProfile: async () => {
@@ -1700,6 +1701,10 @@ const Actions = {
     },
 
     // ===== Gantt =====
+    _ganttSaveErr: (label, e) => {
+        console.error(label + ':', e);
+        if (window.showAlert) window.showAlert(L('common.saveFailed') + (e?.message ? ': ' + e.message : ''));
+    },
     _ganttStartOfDay: (ms) => {
         const d = new Date(ms);
         d.setHours(0, 0, 0, 0);
@@ -1780,7 +1785,7 @@ const Actions = {
         try {
             await updateDoc(doc(db, 'tasks', tid), { startMs, endMs });
         } catch (e) {
-            console.warn('保存任务排期失败:', e);
+            Actions._ganttSaveErr('保存任务排期失败', e);
         }
     },
     clearTaskSchedule: async (tid) => {
@@ -1800,7 +1805,7 @@ const Actions = {
         try {
             await updateDoc(doc(db, 'tasks', tid), { todos: t.todos });
         } catch (e) {
-            console.warn('保存 Todo 排期失败:', e);
+            Actions._ganttSaveErr('保存 Todo 排期失败', e);
         }
     },
     clearTodoSchedule: async (tid, todoId) => {
@@ -1876,7 +1881,7 @@ const Actions = {
                     if (tt) await updateDoc(doc(db, 'tasks', g.taskId), { todos: tt.todos });
                 }
             } catch (e) {
-                console.warn('保存排期失败:', e);
+                Actions._ganttSaveErr('保存排期失败', e);
             }
         };
         document.addEventListener('mousemove', onMove);
@@ -1930,7 +1935,7 @@ const Actions = {
                     if (tt) await updateDoc(doc(db, 'tasks', g.taskId), { todos: tt.todos });
                 }
             } catch (e) {
-                console.warn('保存排期失败:', e);
+                Actions._ganttSaveErr('保存排期失败', e);
             }
         };
         document.addEventListener('mousemove', onMove);
@@ -2015,7 +2020,7 @@ const Actions = {
             t.ganttOwners = list;
             Render();
             try { await updateDoc(doc(db, 'tasks', id), { ganttOwners: list }); }
-            catch (e) { console.warn('保存负责人失败:', e); }
+            catch (e) { Actions._ganttSaveErr('保存负责人失败', e); }
         } else if (kind === 'todo' && g.taskId) {
             const tt = state.tasks.find(x => x.id === g.taskId);
             const td = tt?.todos.find(x => x.id === id);
@@ -2044,7 +2049,7 @@ const Actions = {
             td.text = box.innerHTML;
             Render();
             try { await updateDoc(doc(db, 'tasks', g.taskId), { todos: tt.todos }); }
-            catch (e) { console.warn('保存负责人失败:', e); }
+            catch (e) { Actions._ganttSaveErr('保存负责人失败', e); }
         }
     },
     toggleGanttOwnerPicker: () => {
@@ -2115,7 +2120,7 @@ const Actions = {
             });
             Render();
             try { await updateDoc(doc(db, 'tasks', g.taskId), { todos: t.todos }); }
-            catch (e) { console.warn('保存新待办失败:', e); }
+            catch (e) { Actions._ganttSaveErr('保存新待办失败', e); }
             Actions.closeGanttQuickAdd();
         }
     },
@@ -2159,7 +2164,7 @@ const Actions = {
             t.name = raw;
             Render();
             try { await updateDoc(doc(db, 'tasks', g.selectedItemId), { name: raw }); }
-            catch (e) { console.warn('保存任务名失败:', e); }
+            catch (e) { Actions._ganttSaveErr('保存任务名失败', e); }
         } else {
             const tt = state.tasks.find(x => x.id === g.taskId);
             const td = tt?.todos?.find(x => x.id === g.selectedItemId);
@@ -2187,7 +2192,7 @@ const Actions = {
             td.text = html;
             Render();
             try { await updateDoc(doc(db, 'tasks', g.taskId), { todos: tt.todos }); }
-            catch (e) { console.warn('保存 Todo 文本失败:', e); }
+            catch (e) { Actions._ganttSaveErr('保存 Todo 文本失败', e); }
         }
         Actions.closeGanttQuickEdit();
     },
@@ -2201,7 +2206,7 @@ const Actions = {
             t.priority = norm;
             Render();
             try { await updateDoc(doc(db, 'tasks', id), { priority: norm }); }
-            catch (e) { console.warn('保存任务优先级失败:', e); }
+            catch (e) { Actions._ganttSaveErr('保存任务优先级失败', e); }
         } else if (kind === 'todo' && g.taskId) {
             const tt = state.tasks.find(x => x.id === g.taskId);
             const td = tt?.todos?.find(x => x.id === id);
@@ -2209,7 +2214,7 @@ const Actions = {
             td.priority = norm;
             Render();
             try { await updateDoc(doc(db, 'tasks', g.taskId), { todos: tt.todos }); }
-            catch (e) { console.warn('保存 Todo 优先级失败:', e); }
+            catch (e) { Actions._ganttSaveErr('保存 Todo 优先级失败', e); }
         }
     },
 
