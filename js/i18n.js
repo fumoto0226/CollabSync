@@ -151,6 +151,10 @@ const I18N_MESSAGES = {
         'gantt.nextMonth': '向后一个月',
         'gantt.add': '添加',
         'gantt.deleteConfirm': '确定要删除"{name}"吗？',
+        'gantt.complete': '完成',
+        'gantt.uncomplete': '取消完成',
+        'gantt.undone': '已撤回上一步',
+        'gantt.nothingToUndo': '没有可撤回的操作',
         'gantt.zoomDay': '日',
         'gantt.zoomMonth': '月',
         'gantt.zoomYear': '年',
@@ -188,6 +192,24 @@ const I18N_MESSAGES = {
         'newTask.fileNotePlaceholder': '简单说明这个初始文件的用途，方便团队成员理解',
         'newTask.textNotice': '这是一个<strong class="font-semibold text-gray-700">无文件任务</strong>，不需要上传/下载文件。可以直接在待办区域记录内容，或通过"完成编辑"添加进度备注。',
         'newTask.submit': '创建任务',
+        // 批量导入日程
+        'batchImport.button': '批量导入日程',
+        'batchImport.title': '批量导入日程',
+        'batchImport.subtitle': '按文本格式一次性创建一个新任务及其排期',
+        'batchImport.newTaskName': '新任务名',
+        'batchImport.newTaskNamePlaceholder': '例如：2026 Q3 产品迭代',
+        'batchImport.textLabel': '日程内容',
+        'batchImport.textPlaceholder': `示例（每行一条）：
+6/25 设计首页视觉 @wowopopo
+6/26-6/28 前端搭骨架 @fafa @wowopopo
+7/1 产品评审会
+7/5-7/10 内测 高 @fafa`,
+        'batchImport.hint': '格式：日期 内容 @成员 优先级(可选)。日期支持 M/D 或 M/D-M/D，优先级填"高/中/低"。',
+        'batchImport.parsedCount': '将创建 {n} 条已排期待办',
+        'batchImport.emptyName': '请填写任务名称',
+        'batchImport.emptyText': '请粘贴日程内容',
+        'batchImport.parseError': '解析失败，请检查格式',
+        'batchImport.submit': '创建并导入',
         // 任务卡片
         'taskcard.notStarted': '未开始',
         'taskcard.editTask': '编辑任务',
@@ -396,6 +418,10 @@ const I18N_MESSAGES = {
         'gantt.nextMonth': '1か月進む',
         'gantt.add': '追加',
         'gantt.deleteConfirm': '「{name}」を削除しますか？',
+        'gantt.complete': '完了',
+        'gantt.uncomplete': '完了取消',
+        'gantt.undone': '一つ戻しました',
+        'gantt.nothingToUndo': '戻す操作がありません',
         'gantt.zoomDay': '日',
         'gantt.zoomMonth': '月',
         'gantt.zoomYear': '年',
@@ -433,6 +459,24 @@ const I18N_MESSAGES = {
         'newTask.fileNotePlaceholder': '初期ファイルの用途を簡単に書いておくとチームが理解しやすくなります',
         'newTask.textNotice': 'これは<strong class="font-semibold text-gray-700">ファイルなしタスク</strong>です。ファイルのアップロード/ダウンロードは不要で、ToDo エリアに記録するか「編集完了」で進捗メモを追加できます。',
         'newTask.submit': 'タスクを作成',
+        // 批量导入日程
+        'batchImport.button': 'スケジュールー括インポート',
+        'batchImport.title': 'スケジュールー括インポート',
+        'batchImport.subtitle': 'テキストから新規タスクとそのスケジュールをまとめて作成',
+        'batchImport.newTaskName': '新規タスク名',
+        'batchImport.newTaskNamePlaceholder': '例：2026 Q3 プロダクト開発',
+        'batchImport.textLabel': 'スケジュール内容',
+        'batchImport.textPlaceholder': `例（1 行 1 件）：
+6/25 トップ画面デザイン @wowopopo
+6/26-6/28 フロント構造構築 @fafa @wowopopo
+7/1 レビュー会議
+7/5-7/10 内部テスト 高 @fafa`,
+        'batchImport.hint': '形式：日付 内容 @メンバー 優先度(任意)。日付は M/D または M/D-M/D、優先度は「高/中/低」。',
+        'batchImport.parsedCount': '{n} 件のスケジュール済み ToDo を作成します',
+        'batchImport.emptyName': 'タスク名を入力してください',
+        'batchImport.emptyText': 'スケジュール内容を貼り付けてください',
+        'batchImport.parseError': '解析に失敗しました。形式をご確認ください',
+        'batchImport.submit': '作成してインポート',
         // 任务卡片
         'taskcard.notStarted': '未開始',
         'taskcard.editTask': 'タスクを編集',

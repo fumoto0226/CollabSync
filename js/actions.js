@@ -1700,10 +1700,207 @@ const Actions = {
         Render();
     },
 
+    // ===== 批量导入日程 =====
+    openBatchImport: (pid) => {
+        state.ui.batchImport = { projectId: pid, taskName: '', text: '' };
+        Render();
+        setTimeout(() => document.getElementById('batch-import-name')?.focus(), 0);
+    },
+    closeBatchImport: () => {
+        state.ui.batchImport = null;
+        Render();
+    },
+    setBatchImportField: (field, val) => {
+        if (!state.ui.batchImport) return;
+        state.ui.batchImport[field] = val;
+        // 文本变化会即时预览统计，触发 Render
+        if (field === 'text') Render();
+    },
+    _parseBatchImportLines: (text, projectId) => {
+        // 用于识别 @成员：取项目当前成员名字
+        const p = state.projects.find(pp => pp.id === projectId);
+        const memberIds = (p?.memberIds || p?.members || []);
+        const members = state.users.filter(u => memberIds.includes(u.uid));
+        const byName = new Map(members.map(m => [(m.name || '').toLowerCase(), m]));
+        const escHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const nowYear = new Date().getFullYear();
+        const startOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+        const parseDate = (str) => {
+            // 支持 M/D 或 YYYY/M/D 或 YYYY-MM-DD
+            let m = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+            if (m) {
+                const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+                return isNaN(d) ? null : startOfDay(d.getTime());
+            }
+            m = str.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+            if (m) {
+                const d = new Date(nowYear, Number(m[1]) - 1, Number(m[2]));
+                return isNaN(d) ? null : startOfDay(d.getTime());
+            }
+            return null;
+        };
+        const priorityMap = new Map([
+            ['高', 'high'], ['中', 'medium'], ['低', 'low'],
+            ['h', 'high'], ['m', 'medium'], ['l', 'low'],
+            ['high', 'high'], ['medium', 'medium'], ['low', 'low']
+        ]);
+        const results = [];
+        const errors = [];
+        text.split(/\r?\n/).forEach((raw, idx) => {
+            // 在 `@` 前如果没空格，自动补一个（例如 `テキスト@nini` → `テキスト @nini`）
+            const line = raw.trim().replace(/(\S)@/g, '$1 @');
+            if (!line) return;
+            const tokens = line.split(/\s+/);
+            if (!tokens.length) return;
+            // 第一个 token 必须是日期或日期区间
+            const dateTok = tokens.shift();
+            let startMs = null, endMs = null;
+            if (dateTok.includes('-') && !/^\d{4}-/.test(dateTok)) {
+                // M/D-M/D 或 M/D-M/D 范围
+                const parts = dateTok.split('-');
+                if (parts.length === 2) {
+                    startMs = parseDate(parts[0]);
+                    endMs = parseDate(parts[1]);
+                }
+            } else {
+                startMs = parseDate(dateTok);
+                endMs = startMs;
+            }
+            if (!startMs || !endMs) {
+                errors.push({ line: idx + 1, raw, reason: '日期无法识别' });
+                return;
+            }
+            // 余下 token 里找 @成员 与 优先级
+            const mentionUids = [];
+            let priority = 'none';
+            const contentTokens = [];
+            tokens.forEach(tk => {
+                if (tk.startsWith('@')) {
+                    const name = tk.slice(1);
+                    const u = byName.get(name.toLowerCase());
+                    if (u) mentionUids.push(u);
+                    // 未匹配的成员保留为普通文字（避免丢内容）
+                    else contentTokens.push(tk);
+                } else if (priorityMap.has(tk.toLowerCase()) && priority === 'none') {
+                    priority = priorityMap.get(tk.toLowerCase());
+                } else {
+                    contentTokens.push(tk);
+                }
+            });
+            // 生成 HTML：文本 + mention span 追加
+            let html = escHtml(contentTokens.join(' '));
+            mentionUids.forEach(u => {
+                const tone = u.uid === state.currentUser?.uid ? 'todo-mention-me' : 'todo-mention-other';
+                if (html) html += ' ';
+                html += `<span class="todo-mention ${tone}" contenteditable="false" data-mention-uid="${u.uid}">@${escHtml(u.name || '')}</span>`;
+            });
+            results.push({
+                startMs, endMs,
+                priority,
+                text: html,
+                mentionUids: mentionUids.map(u => u.uid),
+                rawContent: contentTokens.join(' ')
+            });
+        });
+        return { results, errors };
+    },
+    submitBatchImport: async () => {
+        const bi = state.ui.batchImport;
+        if (!bi) return;
+        const name = (bi.taskName || '').trim();
+        const text = (bi.text || '').trim();
+        if (!name) { alert(L('batchImport.emptyName')); return; }
+        if (!text) { alert(L('batchImport.emptyText')); return; }
+        const parsed = Actions._parseBatchImportLines(text, bi.projectId);
+        if (!parsed.results.length) {
+            alert(L('batchImport.parseError') + (parsed.errors.length ? `\n\n第 ${parsed.errors[0].line} 行: ${parsed.errors[0].reason}` : ''));
+            return;
+        }
+        const { db, collection, addDoc } = window.fb;
+        try {
+            const projectTasks = state.tasks.filter(t => t.projectId === bi.projectId);
+            const maxOrder = projectTasks.reduce((m, t) => Math.max(m, t.order || 0), 0);
+            const todos = parsed.results.map((r, i) => ({
+                id: `td${Date.now()}${i}`,
+                text: r.text,
+                images: [],
+                priority: r.priority,
+                completed: false,
+                createdAt: Date.now(),
+                createdBy: state.currentUser?.uid || null,
+                startMs: r.startMs,
+                endMs: r.endMs
+            }));
+            await addDoc(collection(db, 'tasks'), {
+                projectId: bi.projectId,
+                name,
+                description: L('batchImport.subtitle'),
+                todos,
+                file: null,
+                isLocked: false,
+                lockedBy: null,
+                activities: [],
+                completed: false,
+                kind: 'text',
+                order: maxOrder + 1,
+                createdAt: Date.now()
+            });
+            state.ui.batchImport = null;
+            Render();
+        } catch (e) {
+            console.error('批量导入失败:', e);
+            alert('批量导入失败: ' + (e?.message || ''));
+        }
+    },
+
     // ===== Gantt =====
     _ganttSaveErr: (label, e) => {
         console.error(label + ':', e);
         if (window.showAlert) window.showAlert(L('common.saveFailed') + (e?.message ? ': ' + e.message : ''));
+    },
+    _pushGanttUndo: (entry) => {
+        const s = state.ui.ganttModal.undoStack || [];
+        s.push(entry);
+        while (s.length > 30) s.shift();
+        state.ui.ganttModal.undoStack = s;
+    },
+    ganttUndo: async () => {
+        const g = state.ui.ganttModal;
+        if (!g?.mode) return;
+        const s = g.undoStack || [];
+        const entry = s.pop();
+        if (!entry) {
+            if (window.showAlert) window.showAlert(L('gantt.nothingToUndo'));
+            return;
+        }
+        const { db, doc, updateDoc } = window.fb;
+        try {
+            if (entry.kind === 'task') {
+                const t = state.tasks.find(x => x.id === entry.id);
+                if (!t) return;
+                const payload = {};
+                Object.keys(entry).forEach(k => {
+                    if (k === 'kind' || k === 'id' || k === 'taskId') return;
+                    t[k] = entry[k];
+                    payload[k] = entry[k];
+                });
+                Render();
+                await updateDoc(doc(db, 'tasks', entry.id), payload);
+            } else {
+                const tt = state.tasks.find(x => x.id === entry.taskId);
+                const td = tt?.todos?.find(x => x.id === entry.id);
+                if (!td) return;
+                Object.keys(entry).forEach(k => {
+                    if (k === 'kind' || k === 'id' || k === 'taskId') return;
+                    td[k] = entry[k];
+                });
+                Render();
+                await updateDoc(doc(db, 'tasks', entry.taskId), { todos: tt.todos });
+            }
+            if (window.showAlert) window.showAlert(L('gantt.undone'));
+        } catch (e) {
+            Actions._ganttSaveErr('撤回失败', e);
+        }
     },
     _ganttCellW: () => {
         return state.ui.ganttModal?.cellW || 34;
@@ -1828,7 +2025,7 @@ const Actions = {
         }
         // 纵向滚动 = 连续缩放（围绕光标位置）
         event.preventDefault();
-        const MIN_W = 1.2, MAX_W = 60;
+        const MIN_W = 1.2, MAX_W = 102;
         const oldW = g.cellW || 34;
         // deltaY > 0 (滚下) → 缩小；< 0 (滚上) → 放大
         // 每 100 单位 deltaY 大约缩放 1.12 倍
@@ -1864,7 +2061,7 @@ const Actions = {
         const usableW = Math.max(300, modalW - 180 - 4);
         // 留 10% 余量挑刚好填满的 cellW
         const fitWidth = usableW * 0.9;
-        const MIN_W = 1.2, MAX_W = 60;
+        const MIN_W = 1.2, MAX_W = 102;
         const fitCellW = Math.max(MIN_W, Math.min(MAX_W, fitWidth / totalDays));
         g.cellW = fitCellW;
         g.zoomLevel = Actions._ganttLevelFromCellW(fitCellW);
@@ -1895,6 +2092,8 @@ const Actions = {
         const { db, doc, updateDoc } = window.fb;
         const t = state.tasks.find(x => x.id === tid);
         if (!t) return;
+        // 记录撤回：改前的 startMs/endMs
+        Actions._pushGanttUndo({ kind: 'task', id: tid, startMs: t.startMs || null, endMs: t.endMs || null });
         t.startMs = startMs;
         t.endMs = endMs;
         Render();
@@ -1915,6 +2114,7 @@ const Actions = {
         if (!t) return;
         const todo = (t.todos || []).find(td => td.id === todoId);
         if (!todo) return;
+        Actions._pushGanttUndo({ kind: 'todo', id: todoId, taskId: tid, startMs: todo.startMs || null, endMs: todo.endMs || null });
         todo.startMs = startMs;
         todo.endMs = endMs;
         Render();
@@ -1986,6 +2186,12 @@ const Actions = {
                 Actions.selectGanttItem(itemId);
                 return;
             }
+            // 记录撤回：drag 之前的 startMs/endMs/ganttRow
+            Actions._pushGanttUndo({
+                kind: itemKind, id: itemId,
+                ...(itemKind === 'todo' ? { taskId: g.taskId } : {}),
+                startMs: origStart, endMs: origEnd, ganttRow: Number.isFinite(origRow) ? origRow : null
+            });
             const { db, doc, updateDoc } = window.fb;
             try {
                 if (itemKind === 'task') {
@@ -2041,6 +2247,12 @@ const Actions = {
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
             if (pendingFrame) { cancelAnimationFrame(pendingFrame); pendingFrame = null; }
+            // 记录撤回：resize 之前的 startMs/endMs
+            Actions._pushGanttUndo({
+                kind: itemKind, id: itemId,
+                ...(itemKind === 'todo' ? { taskId: g.taskId } : {}),
+                startMs: origStart, endMs: origEnd
+            });
             // 写回 Firestore
             const { db, doc, updateDoc } = window.fb;
             try {
@@ -2193,6 +2405,33 @@ const Actions = {
         state.ui.ganttModal.selectedItemId = cm.id;
         state.ui.ganttModal.contextMenu = null;
         Actions.openGanttQuickEdit();
+    },
+    ganttContextComplete: async () => {
+        const g = state.ui.ganttModal;
+        const cm = g.contextMenu;
+        if (!cm) return;
+        g.contextMenu = null;
+        const { db, doc, updateDoc } = window.fb;
+        try {
+            if (cm.kind === 'task') {
+                const t = state.tasks.find(x => x.id === cm.id);
+                if (!t) return;
+                Actions._pushGanttUndo({ kind: 'task', id: cm.id, completed: !!t.completed });
+                t.completed = !t.completed;
+                Render();
+                await updateDoc(doc(db, 'tasks', cm.id), { completed: t.completed });
+            } else {
+                const tt = state.tasks.find(x => x.id === g.taskId);
+                const td = tt?.todos?.find(x => x.id === cm.id);
+                if (!td) return;
+                Actions._pushGanttUndo({ kind: 'todo', id: cm.id, taskId: g.taskId, completed: !!td.completed });
+                td.completed = !td.completed;
+                Render();
+                await updateDoc(doc(db, 'tasks', g.taskId), { todos: tt.todos });
+            }
+        } catch (e) {
+            Actions._ganttSaveErr('切换完成状态失败', e);
+        }
     },
     ganttContextDelete: async () => {
         const g = state.ui.ganttModal;

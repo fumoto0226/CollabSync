@@ -166,6 +166,18 @@ setInterval(() => {
     });
 }, 1000);
 
+// 全局 Ctrl/⌘+Z：仅在日程表打开时触发撤回
+document.addEventListener('keydown', (e) => {
+    if (!state.ui.ganttModal?.mode) return;
+    // 避免在文本输入框内触发（编辑弹窗等）
+    const tag = (document.activeElement?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return;
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        Actions.ganttUndo();
+    }
+});
+
 // Initial Render
 window.addEventListener('resize', syncResponsiveLayout);
 syncResponsiveLayout();

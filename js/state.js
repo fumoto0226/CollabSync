@@ -53,6 +53,7 @@ let state = {
         activationCodesLoading: false,
         activationModalOpen: false,
         expiryEditorCode: null,
+        batchImport: null,  // { projectId, taskName, text } | null
         pendingTodoRecovery: null,
         projectsLoading: false,
         ganttModal: {
@@ -71,7 +72,8 @@ let state = {
             quickAddText: '',
             quickEditOpen: false,
             quickEditText: '',
-            contextMenu: null  // { kind, id, x, y } 或 null
+            contextMenu: null,  // { kind, id, x, y } 或 null
+            undoStack: []       // 撤回栈：每项是"改动前的字段快照"
         },
         inviteInput: '',
         draftSearchResult: null, // 创建项目时搜索成员的结果

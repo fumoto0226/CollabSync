@@ -1,4 +1,64 @@
 function RenderModals() {
+    // 批量导入日程
+    if (state.ui.batchImport) {
+        const bi = state.ui.batchImport;
+        const parsed = Actions._parseBatchImportLines(bi.text || '', bi.projectId);
+        return `
+            <div class="fixed inset-0 z-[85] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+                onclick="if(event.target===this) window.dispatch('closeBatchImport')">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col" style="max-height:88vh;">
+                    <div class="px-5 py-4 border-b bg-gradient-to-r from-indigo-50 to-purple-50 flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">${Icon('file-input', '', 18)} ${L('batchImport.title')}</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">${L('batchImport.subtitle')}</p>
+                        </div>
+                        <button onclick="window.dispatch('closeBatchImport')" class="text-gray-400 hover:text-gray-600">${Icon('x', '', 20)}</button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">${L('batchImport.newTaskName')}</label>
+                            <input id="batch-import-name" type="text" value="${(bi.taskName || '').replace(/"/g, '&quot;')}"
+                                oninput="window.dispatch('setBatchImportField', 'taskName', this.value)"
+                                placeholder="${L('batchImport.newTaskNamePlaceholder')}"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">${L('batchImport.textLabel')}</label>
+                            <textarea rows="10"
+                                oninput="window.dispatch('setBatchImportField', 'text', this.value)"
+                                placeholder="${L('batchImport.textPlaceholder').replace(/"/g, '&quot;')}"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none text-sm font-mono">${(bi.text || '').replace(/</g, '&lt;')}</textarea>
+                            <p class="mt-1.5 text-[11px] text-gray-400">${L('batchImport.hint')}</p>
+                        </div>
+                        ${parsed.results.length > 0 || parsed.errors.length > 0 ? `
+                            <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs space-y-1 max-h-52 overflow-y-auto">
+                                <div class="font-semibold text-gray-600 mb-1">${L('batchImport.parsedCount', { n: parsed.results.length })}</div>
+                                ${parsed.results.slice(0, 20).map(r => {
+                                    const d = new Date(r.startMs);
+                                    const d2 = new Date(r.endMs);
+                                    const same = r.startMs === r.endMs;
+                                    const dateStr = same
+                                        ? `${d.getMonth() + 1}/${d.getDate()}`
+                                        : `${d.getMonth() + 1}/${d.getDate()} - ${d2.getMonth() + 1}/${d2.getDate()}`;
+                                    const box = document.createElement('div');
+                                    box.innerHTML = r.text;
+                                    const preview = (box.textContent || '').trim();
+                                    return `<div class="flex gap-2 text-gray-700"><span class="text-indigo-600 font-mono flex-shrink-0">${dateStr}</span><span class="truncate">${preview.replace(/</g, '&lt;')}</span>${r.priority !== 'none' ? `<span class="text-[10px] px-1 rounded ${r.priority === 'high' ? 'bg-red-100 text-red-600' : r.priority === 'medium' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}">${r.priority === 'high' ? '高' : r.priority === 'medium' ? '中' : '低'}</span>` : ''}</div>`;
+                                }).join('')}
+                                ${parsed.results.length > 20 ? `<div class="text-gray-400">…+${parsed.results.length - 20}</div>` : ''}
+                                ${parsed.errors.length ? `<div class="text-red-500 mt-2">跳过 ${parsed.errors.length} 行：${parsed.errors.slice(0, 3).map(e => `#${e.line} ${e.reason}`).join('；')}</div>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="px-5 py-3 bg-gray-50 border-t flex justify-end gap-2">
+                        <button onclick="window.dispatch('closeBatchImport')" class="px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-200 rounded">${L('common.cancel')}</button>
+                        <button onclick="window.dispatch('submitBatchImport')" class="px-4 py-1.5 text-sm font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded shadow-sm ${parsed.results.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}" ${parsed.results.length === 0 ? 'disabled' : ''}>${L('batchImport.submit')}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     // Pending Todo Recovery (interrupted send)
     if (state.ui.pendingTodoRecovery) {
         const rec = state.ui.pendingTodoRecovery;
@@ -1273,19 +1333,19 @@ function renderGanttModal() {
         } else if (zoom.headerMode === 'month') {
             // 每周一标一个 "M/D"，其他日子留白
             if (d.getDay() === 1) {
-                label = `<div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'} pt-1 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%);">${d.getMonth() + 1}/${d.getDate()}</div>`;
+                label = `<div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'} pt-1 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%); z-index:20; padding:0 3px; background:white;">${d.getMonth() + 1}/${d.getDate()}</div>`;
             }
             // 每月 1 号粗一点
             if (d.getDate() === 1) {
-                label += `<div class="text-[11px] text-indigo-600 font-bold pt-4 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%);">${d.getMonth() + 1}月</div>`;
+                label += `<div class="text-[11px] text-indigo-600 font-bold pt-4 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%); z-index:20; padding:0 3px; background:white;">${d.getMonth() + 1}月</div>`;
             }
         } else if (zoom.headerMode === 'year') {
             // 每月 1 号标月份；每年 1/1 标年
             if (d.getDate() === 1) {
-                label = `<div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'} pt-1 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%);">${d.getMonth() + 1}月</div>`;
+                label = `<div class="text-[10px] ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'} pt-1 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%); z-index:20; padding:0 3px; background:white;">${d.getMonth() + 1}月</div>`;
             }
             if (d.getDate() === 1 && d.getMonth() === 0) {
-                label += `<div class="text-[11px] text-indigo-600 font-bold pt-4 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%);">${d.getFullYear()}</div>`;
+                label += `<div class="text-[11px] text-indigo-600 font-bold pt-4 whitespace-nowrap" style="position:absolute; left:0; transform:translateX(-50%); z-index:20; padding:0 3px; background:white;">${d.getFullYear()}</div>`;
             }
         }
         const { borderClass: hBorder, bgClass: hBg } = computeCellStyle(ms, isToday);
@@ -1344,6 +1404,7 @@ function renderGanttModal() {
                     title="拖动调整开始日期"></div>` : ''}
                 <div
                     onmousedown="window.dispatch('onGanttBarMouseDown', event, '${it.kind}', '${it.id}')"
+                    oncontextmenu="window.dispatch('openGanttContextMenu', event, '${it.kind}', '${it.id}')"
                     ondragstart="event.preventDefault()"
                     class="flex-1 min-w-0 px-1.5 text-xs font-medium flex items-center gap-1 cursor-grab hover:brightness-95 select-none"
                     title="${(it.label || '').replace(/"/g, '&quot;')}">
@@ -1421,7 +1482,7 @@ function renderGanttModal() {
                             <span>${g.mode === 'project' ? L('gantt.tasks') : L('gantt.todos')} · ${leftItems.length}${hiddenOldDone.length ? ` · ${L('gantt.hiddenCount', { n: hiddenOldDone.length })}` : ''}</span>
                             ${g.mode === 'task' ? `<button onclick="window.dispatch('openGanttQuickAdd')" class="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-indigo-600" title="${L('gantt.addTodo')}">${Icon('plus', '', 14)}</button>` : ''}
                         </div>
-                        <div class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
+                        <div id="gantt-left-scroll" data-scroll class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
                             ${leftItems.length === 0
                                 ? `<div class="text-[11px] text-gray-400 text-center mt-6 px-2">${L('gantt.empty')}</div>`
                                 : leftItems.map(it => renderGanttLeftChip(it, !!(it.startMs && it.endMs), myUid, g)).join('')
@@ -1435,7 +1496,7 @@ function renderGanttModal() {
                         </div>
                     </div>
                     <!-- 时间轴主体（自由摆放：bin-packing） -->
-                    <div class="flex-1 overflow-auto custom-scrollbar">
+                    <div id="gantt-timeline-scroll" data-scroll class="flex-1 overflow-auto custom-scrollbar">
                         <div class="inline-flex flex-col min-w-full">
                             <!-- 时间轴表头 -->
                             <div class="flex sticky top-0 z-10 bg-white border-b border-gray-200">
@@ -1613,18 +1674,32 @@ function renderGanttModal() {
                         </div>
                     </div>
                 ` : ''}
-                ${g.contextMenu ? `
+                ${g.contextMenu ? (() => {
+                    // 查找当前项，判断是否已完成，以决定显示"完成"还是"取消完成"
+                    const cm = g.contextMenu;
+                    let isCompleted = false;
+                    if (cm.kind === 'task') {
+                        isCompleted = !!state.tasks.find(x => x.id === cm.id)?.completed;
+                    } else {
+                        const tt = state.tasks.find(x => x.id === g.taskId);
+                        isCompleted = !!tt?.todos?.find(x => x.id === cm.id)?.completed;
+                    }
+                    return `
                     <div class="fixed inset-0 z-[120]" onclick="window.dispatch('closeGanttContextMenu')" oncontextmenu="event.preventDefault(); window.dispatch('closeGanttContextMenu')">
-                        <div class="absolute bg-white border border-gray-200 rounded-lg shadow-2xl py-1 w-32" style="left:${g.contextMenu.x}px; top:${g.contextMenu.y}px;" onclick="event.stopPropagation()">
+                        <div class="absolute bg-white border border-gray-200 rounded-lg shadow-2xl py-1 w-36" style="left:${cm.x}px; top:${cm.y}px;" onclick="event.stopPropagation()">
                             <button onclick="window.dispatch('ganttContextEdit')" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                                 ${Icon('edit-3', '', 14)} ${L('common.edit')}
+                            </button>
+                            <button onclick="window.dispatch('ganttContextComplete')" class="w-full text-left px-3 py-2 text-sm ${isCompleted ? 'text-gray-500' : 'text-emerald-600'} hover:bg-emerald-50 flex items-center gap-2">
+                                ${Icon(isCompleted ? 'rotate-ccw' : 'check-circle-2', '', 14)} ${isCompleted ? L('gantt.uncomplete') : L('gantt.complete')}
                             </button>
                             <button onclick="window.dispatch('ganttContextDelete')" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
                                 ${Icon('trash-2', '', 14)} ${L('common.delete')}
                             </button>
                         </div>
                     </div>
-                ` : ''}
+                `;
+                })() : ''}
             </div>
         </div>
     `;

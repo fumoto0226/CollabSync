@@ -730,7 +730,19 @@ function RenderMain() {
                     </div>
                 </div>
                 <div class="p-8">
-                    <h2 class="text-lg font-bold text-gray-800 mb-4">${L('project.taskBoard')}</h2>
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-bold text-gray-800">${L('project.taskBoard')}</h2>
+                        <div class="flex items-center gap-2">
+                            <button onclick="window.dispatch('openBatchImport', '${p.id}')"
+                                class="flex items-center px-3 py-1.5 rounded-lg bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 shadow-sm text-sm font-medium transition-colors">
+                                ${Icon('file-input', 'mr-1.5', 14)} ${L('batchImport.button')}
+                            </button>
+                            <button onclick="window.dispatch('initNewTask', '${p.id}')"
+                                class="flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm text-sm font-medium transition-colors">
+                                ${Icon('plus', 'mr-1.5', 14)} ${L('sidebar.newTask')}
+                            </button>
+                        </div>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         ${pTasks.map(t => {
             const locker = t.isLocked ? state.users.find(u => u.uid === t.lockedBy) : null;
