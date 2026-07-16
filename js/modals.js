@@ -358,42 +358,42 @@ function RenderModals() {
         const t = state.tasks.find(x => x.id === tid);
         const isTextTask = t.kind === 'text';
         const githubLinked = !!t.github?.enabled;
-        const primaryActionLabel = githubLinked ? '从 GitHub 记录版本并解锁' : '上传新版本并解锁';
+        const primaryActionLabel = githubLinked ? L('action.recordGithub') : L('action.uploadNew');
         const primaryActionIcon = githubLinked ? 'github' : 'upload';
 
         return `
             <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 fade-in" onclick="if(event.target===this) window.dispatch('closeActionModal')">
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                     <div class="px-6 py-5 border-b bg-gray-50">
-                        <h3 class="text-lg font-bold text-gray-800 text-center">完成编辑</h3>
-                        <p class="text-xs text-gray-500 text-center mt-1">请选择操作</p>
+                        <h3 class="text-lg font-bold text-gray-800 text-center">${L('action.title')}</h3>
+                        <p class="text-xs text-gray-500 text-center mt-1">${L('action.subtitle')}</p>
                     </div>
                     <div class="p-6 space-y-3">
                         ${isTextTask ? `
                         <!-- 无文件任务：结束占用（不支持备注） -->
-                        <button onclick="window.dispatch('submitProgress', '${t.id}')" 
+                        <button onclick="window.dispatch('submitProgress', '${t.id}')"
                             class="w-full flex items-center justify-center px-4 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-md transition-all active:scale-95">
-                            ${Icon('check', 'mr-2', 18)} 结束占用
+                            ${Icon('check', 'mr-2', 18)} ${L('action.finishText')}
                         </button>
                         ` : `
                         <!-- 有文件任务：上传文件 -->
-                        <button onclick="window.dispatch('triggerUploadInModal', '${t.id}')" 
+                        <button onclick="window.dispatch('triggerUploadInModal', '${t.id}')"
                             class="w-full flex items-center justify-center px-4 py-3 ${githubLinked ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-95">
                             ${state.ui.isUploading ? Icon('loader-2', 'mr-2 animate-spin', 18) : Icon(primaryActionIcon, 'mr-2', 18)} ${primaryActionLabel}
                         </button>
                         <input type="file" id="modal-file-upload-${t.id}" class="hidden" onchange="window.dispatch('uploadFile', '${t.id}', this)">
 
                         <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">版本备注（可选）</label>
-                            <textarea id="upload-comment-${t.id}" rows="2" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none resize-none" placeholder="这一版主要修改了哪些内容，方便成员快速了解"></textarea>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">${L('action.noteLabel')}</label>
+                            <textarea id="upload-comment-${t.id}" rows="2" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none resize-none" placeholder="${L('action.notePlaceholder')}"></textarea>
                         </div>
                         `}
 
-                        <button onclick="window.dispatch('openConfirmModal', 'discard_changes', '${t.id}', '放弃修改', '确定要放弃所做的修改并解锁任务吗？这不会删除之前已上传的版本，只会放弃当前编辑周期内的修改。')" 
+                        <button onclick="window.dispatch('openConfirmModal', 'discard_changes', '${t.id}', '${L('action.discardTitle')}', '${L('action.discardConfirm')}')"
                             class="w-full flex items-center justify-center px-4 py-3 bg-white border-2 border-red-100 text-red-500 rounded-xl text-sm font-bold hover:bg-red-50 hover:border-red-200 transition-all active:scale-95">
-                            ${Icon('x-circle', 'mr-2', 18)} 放弃修改 (不保存)
+                            ${Icon('x-circle', 'mr-2', 18)} ${L('action.discardBtn')}
                         </button>
-                        <button onclick="window.dispatch('closeActionModal')" class="w-full py-2 text-xs text-gray-400 hover:text-gray-600">取消</button>
+                        <button onclick="window.dispatch('closeActionModal')" class="w-full py-2 text-xs text-gray-400 hover:text-gray-600">${L('common.cancel')}</button>
                     </div>
                 </div>
             </div>
